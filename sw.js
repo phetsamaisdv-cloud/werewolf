@@ -1,12 +1,14 @@
 /* Service Worker — offline shell สำหรับ คืนหอนหลอนหมาป่า */
 'use strict';
 
-const VERSION = 'v1.0.0';
+const VERSION = 'v1.1.0';
 const CACHE = 'werewolf-shell-' + VERSION;
 
 const CORE_ASSETS = [
   './',
   './index.html',
+  './styles.css',
+  './app.js',
   './manifest.json',
   './icon.svg',
   './icons/icon-192.png',

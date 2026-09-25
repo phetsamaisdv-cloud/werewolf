@@ -21,9 +21,11 @@
 
 | ไฟล์ | ขนาด | สถานะ |
 |---|---|---|
-| `index.html` | ~137 KB · ~2,933 บรรทัด | ✅ ไฟล์หลัก เวอร์ชัน **10.0** (SAVE_KEY `werewolf_v9`) |
+| `index.html` | ~1.7 KB | ✅ shell อย่างเดียว (โหลด styles.css + app.js + manifest) |
+| `styles.css` | ~23 KB | ✅ ธีม dark/light, การ์ด, ปุ่ม, แอนิเมชัน, responsive |
+| `app.js` | ~110 KB | ✅ ตรรกะเกมทั้งหมด (แยกมาจากเดิมเมื่อ 25 ก.ย. 2026) — เวอร์ชัน **10.0** (SAVE_KEY `werewolf_v9`) |
 | `manifest.json` | 1 KB | ✅ PWA manifest (ชื่อ, scope, ไอคอน 5 แบบ) |
-| `sw.js` | ~2 KB | ✅ Service Worker v1.0.0 — cache shell + ทำงานออฟไลน์ได้ |
+| `sw.js` | ~2 KB | ✅ Service Worker v1.1.0 — cache shell + ทำงานออฟไลน์ได้ |
 | `icon.svg` + `icons/*.png` | 6 ไฟล์ | ✅ ไอคอน 180/192/512 + maskable |
 | `TESTING.md` | — | ✅ Smoke test checklist (manual) |
 | `test/smoke.mjs` | — | ✅ E2E test อัตโนมัติ 35 checks (`npm test`) |
@@ -36,33 +38,30 @@
 **สถานะ Git:** มี repository แล้ว (`main`) — commit baseline เป็น commit แรก, การเปลี่ยนแปลงทุกอย่างต้องผ่าน commit
 **ยังไม่มี:** `README.md`, `package.json`, build tool, ไฟล์ทดสอบอัตโนมัติ
 
-โครงสร้างภายใน `index.html` (แบ่งด้วย comment `/* ===== ... ===== */`):
+โครงสร้างภายใน `app.js` (แบ่งด้วย comment `/* ===== ... ===== */`):
 
 ```
-<style>      (บรรทัด 13–439)   → ธีม dark/light, การ์ด, ปุ่ม, แอนิเมชัน, responsive
-<body>       (บรรทัด 441–446)  → <div id="app"> + จุดโหลด
-<script>     (บรรทัด 447–2928)
-  ├─ DATA        ROLES / SPECIAL / กลุ่มฝ่าย / LOGO_SVG
-  ├─ STATE       object `S` { screen, setup, g, ui }
-  ├─ HELPERS     esc, fmt, shuffle, alive, getP, vibrate
-  ├─ WAKE LOCK   requestWake / releaseWake
-  ├─ LOG         addLog / popLastLog (ประวัติเกม)
-  ├─ THEME       applyTheme (dark / light / auto + ขนาดตัวอักษร)
-  ├─ SAVE/LOAD   save / load / getSaveInfo / continueGame / clearSave
-  ├─ TIMER       startT / tickT / beep / showTimerSheet (presets)
-  ├─ SETUP       chgN / incRole / decRole / balanceWarnings / startGame
-  ├─ ASSIGN      แจกบทบาทแบบ manual / random / reshuffle / validate
-  ├─ REVEAL      showRv / nextRv (แจกการ์ดทีละคน)
-  ├─ NIGHT       openN / confirmWolf|Seer|Doctor|Bodyguard|Witch|Cupid|Grandma|Cursed
-  ├─ UNDO NIGHT  undoWolf / undoSeer / undoDoctor / undoBodyguard / undoCupid
-  ├─ RESOLUTION  endNight / killP / markWolfCubDead / hunterShoot
-  ├─ VOTING      startVoting / tally (นายอำเภอ x2) / tieRevote / executePlayer / undoExecution
-  ├─ WIN         checkWin / endGame / winnerText
-  ├─ MOD PANEL   modStart (กดค้าง 3 วิ) / showModPanel (เห็นบทบาททุกคน)
-  ├─ HISTORY     showHistory (จัดกลุ่มตาม Round)
-  ├─ SHEET       openSheet / closeSheet (modal กลางจอ)
-  ├─ RENDER      render() → renderHome/Setup/Assign/Reveal/Night*/Dawn/Hunter/Day/Voting/Tie/Execution/Prince/End
-  └─ BOOT        load → applyTheme → render
+DATA        ROLES / SPECIAL / กลุ่มฝ่าย / LOGO_SVG
+STATE       object `S` { screen, setup, g, ui }
+HELPERS     esc, fmt, shuffle, alive, getP, vibrate
+WAKE LOCK   requestWake / releaseWake
+LOG         addLog / popLastLog (ประวัติเกม)
+THEME       applyTheme (dark / light / auto + ขนาดตัวอักษร)
+SAVE/LOAD   save / load / getSaveInfo / continueGame / clearSave
+TIMER       startT / tickT / beep / showTimerSheet (presets)
+SETUP       chgN / incRole / decRole / balanceWarnings / startGame
+ASSIGN      แจกบทบาทแบบ manual / random / reshuffle / validate
+REVEAL      showRv / nextRv (แจกการ์ดทีละคน)
+NIGHT       openN / confirmWolf|Seer|Doctor|Bodyguard|Witch|Cupid|Grandma|Cursed
+UNDO NIGHT  undoWolf / undoSeer / undoDoctor / undoBodyguard / undoCupid
+RESOLUTION  endNight / killP / markWolfCubDead / hunterShoot
+VOTING      startVoting / tally (นายอำเภอ x2) / tieRevote / executePlayer / undoExecution
+WIN         checkWin / endGame / winnerText
+MOD PANEL   modStart (กดค้าง 3 วิ) / showModPanel (เห็นบทบาททุกคน)
+HISTORY     showHistory (จัดกลุ่มตาม Round)
+SHEET       openSheet / closeSheet (modal กลางจอ)
+RENDER      render() → renderHome/Setup/Assign/Reveal/Night*/Dawn/Hunter/Day/Voting/Tie/Execution/Prince/End
+BOOT        load → applyTheme → render → ลงทะเบียน service worker
 ```
 
 ---
@@ -180,8 +179,8 @@
 4. **Smoke test checklist** — ✅ เขียน `TESTING.md` ครบทั้ง 8 หัวข้อ (ตั้งค่า/กลางคืน/รุ่งเช้า/โหวต/เคสชนะ/save/PWA/UX) — **ยังไม่ได้เดิน test จริงทุกข้อ ต้องทำก่อนปล่อย**
 
 ### 🟡 P1 — ทำต่อ (คุณภาพชีวิต + ลดบั๊ก)
-5. **แยกไฟล์** เป็นอย่างน้อย `index.html` + `styles.css` + `app.js` (ยังไม่ต้องมี build step) → อ่าน/แก้ง่ายขึ้นทันที
-6. **แทนที่ `confirm()`/`alert()` ทั้งหมด** ด้วย sheet modal ของตัวเอง (`openSheet` มีอยู่แล้ว) — ได้ UI ที่เข้าธีม + ปุ่มยืนยันที่ชัดเจน
+5. ✅ **แยกไฟล์** → `index.html` (shell 1.7KB) + `styles.css` + `app.js` — *ทำเสร็จแล้ว* (มี E2E test ยืนยัน 39/39 + ทดสอบออฟไลน์ผ่าน)
+6. **แทนที่ `confirm()`/`alert()` ทั้งหมด** ด้วย sheet modal ของตัวเอง (`openSheet` มีอยู่แล้ว) — ได้ UI ที่เข้าธีม + ปุ่มยืนยันที่ชัดเจน (ต้องปรับ test ให้กดปุ่มแทน auto-accept dialog)
 7. **เพิ่ม Preset ชุดบทบาท** — ปุ่ม "โหลด preset" เช่น `4-6-8-10-12 คน มาตรฐาน` / `Party` / `Competitive` + บันทึกลง `localStorage`
 8. **หลาย slot บันทึกเกม** + ปุ่ม "ดูเกมที่เล่นไปแล้ว" (เก็บผลย้อนหลัง 10 เกมล่าสุด)
 9. **เพิ่มเสียงแจ้งเตือน** (Web Audio สร้างจาก oscillator แบบ `beep()` หรือไฟล์ `.mp3` เล็ก ๆ) สำหรับ: หมดเวลา, จบกลางคืน, ประกาศผลโหวต

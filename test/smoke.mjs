@@ -424,6 +424,25 @@ async function main() {
     check('S8 ไม่มี JS exception', pageErrors.length === 0, pageErrors.slice(0, 3).join(' | '));
     check('S8 ไม่มี HTTP error (404/500)', httpErrors.length === 0, httpErrors.slice(0, 3).join(' | '));
 
+    /* ===== S9: PWA — service worker + โหมดออฟไลน์ ===== */
+    const swInfo = await ev('navigator.serviceWorker.getRegistration().then(r => r ? {scope:r.scope, active:!!r.active, controlled:!!navigator.serviceWorker.controller} : null)');
+    check('S9 service worker ติดตั้งและ active', !!(swInfo && swInfo.active), JSON.stringify(swInfo));
+    const cacheKeys = await ev('caches.keys()');
+    const shellCache = (cacheKeys || []).find((k) => k.startsWith('werewolf-shell-'));
+    check('S9 มี cache shell', !!shellCache, JSON.stringify(cacheKeys));
+    const cachedFiles = shellCache
+      ? await ev(`caches.open(${JSON.stringify(shellCache)}).then(c=>c.keys()).then(ks=>ks.map(k=>new URL(k.url).pathname))`)
+      : [];
+    const need = ['/index.html', '/styles.css', '/app.js', '/manifest.json'];
+    check('S9 cache ครบทุกไฟล์หลัก', need.every((f) => (cachedFiles || []).some((p) => p.endsWith(f))), JSON.stringify(cachedFiles));
+
+    await send('Network.emulateNetworkConditions', { offline: true, latency: 0, downloadThroughput: 0, uploadThroughput: 0 });
+    await send('Page.navigate', { url: PAGE });
+    await waitFor('!!document.getElementById("app") && document.getElementById("app").innerHTML.length > 500', 'offline reload', 15000);
+    const offlineOk = await ev('({html: document.getElementById("app").innerHTML.length > 500, css: document.styleSheets.length > 0, title: document.title})');
+    check('S9 ออฟไลน์ → เปิดหน้าใหม่ได้ (HTML+CSS ครบ)', !!(offlineOk && offlineOk.html && offlineOk.css && String(offlineOk.title).includes('คืนหอนหลอนหมาป่า')), JSON.stringify(offlineOk));
+    await send('Network.emulateNetworkConditions', { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
+
     /* ===== report ===== */
     const failed = results.filter((r) => !r.ok);
     console.log('\n========================================');
