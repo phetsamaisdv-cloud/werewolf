@@ -18,6 +18,11 @@ const ROLES = {
   grandma: {name: 'ยายแก่', icon: '👵', faction: 'village', desc: 'ทุกคืนต้องขับไล่ 1 คนออกจากหมู่บ้าน'},
   villager: {name: 'ชาวบ้าน', icon: '👤', faction: 'village', desc: 'ไม่มีพลังพิเศษ'}
 };
+const ROLE_IMG_DIR = 'assets/roles';
+const ROLE_IMG_FALLBACK = 'assets/role.jpg';
+function roleImg(roleId, cls) {
+  return `<img class="rimg${cls ? ' ' + cls : ''}" src="${ROLE_IMG_DIR}/${esc(roleId)}.jpg" alt="" width="600" height="800" decoding="async" onerror="this.onerror=null;this.src='${ROLE_IMG_FALLBACK}'">`;
+}
 const SPECIAL = ['werewolf', 'wolfcub', 'seer', 'witch', 'hunter', 'doctor', 'bodyguard', 'cupid', 'mayor', 'cursed', 'fool', 'infected', 'prince', 'grandma'];
 const WOLF_GROUP = ['werewolf', 'wolfcub'];
 const VILLAGE_GROUP = ['seer', 'witch', 'hunter', 'doctor', 'bodyguard', 'cupid', 'mayor', 'cursed', 'infected', 'prince', 'grandma'];
@@ -707,7 +712,7 @@ function setAssignMode(m) {
 
 /* ========== PRESET ชุดบทบาท ========== */
 const PRESET_KEY = 'werewolf_presets';
-const PRESET_SIZES = [4, 6, 8, 10, 12, 14, 16];
+const PRESET_SIZES = [4, 6, 8, 10, 12, 14, 16, 18];
 const TRIM_ORDER = [
   'grandma',
   'prince',
@@ -729,6 +734,13 @@ function zeroRoles() {
   const o = {};
   for (const r of SPECIAL) o[r] = 0;
   return o;
+}
+function rolesSig(r) {
+  return SPECIAL.map(k => r[k] || 0).join(',');
+}
+function activePresetKind() {
+  const sig = rolesSig(S.setup.roles);
+  return ['std', 'party', 'comp'].find(k => rolesSig(presetRoles(k, S.setup.n)) === sig);
 }
 function setPresetN(n) {
   if (n < 4 || n > 18) return;
@@ -1840,7 +1852,7 @@ function showGameHistory() {
       const chips = (h.players || [])
         .map(p => {
           const R = ROLES[p.roleId];
-          return `<span class="chip" style="min-height:auto;padding:4px 8px;font-size:11px;${p.alive ? '' : 'opacity:.5;text-decoration:line-through'}">${esc(p.name)} · ${R ? R.icon + R.name : esc(p.roleId)}</span>`;
+          return `<span class="chip chip-row" style="min-height:auto;padding:4px 8px;font-size:11px;${p.alive ? '' : 'opacity:.5;text-decoration:line-through'}">${esc(p.name)} · ${R ? roleImg(p.roleId, 'rimg-xs') + R.name : esc(p.roleId)}</span>`;
         })
         .join('');
       return `<div class="log-item ${h.winner === 'werewolf' ? 'death' : 'info'}">
@@ -2034,7 +2046,7 @@ function showModPanel() {
         <div class="dim f13">${p.alive ? 'มีชีวิต' : 'ตาย'}${p.roleId === 'cursed' ? ' · ' + (p.isTurned ? 'กลายเป็นหมาป่า' : 'ยังเป็นชาวบ้าน') : ''}</div>
         ${causeLine}
       </div>
-      <span class="bd ${fcCls}">${R.icon} ${R.name}</span>
+      <span class="bd ${fcCls}">${roleImg(p.roleId, 'rimg-sm')}${R.name}</span>
     </div>`;
     })
     .join('');
@@ -2261,10 +2273,11 @@ function uxBottom() {
     : `<button onclick="showTimerSheet()"><span class="ico">⏱</span>เวลา</button>`;
   const hasAlert = isWolvesInfectedThisRound();
   return `<nav class="ux-bottom" aria-label="เครื่องมือผู้ดำเนินเกม">
-    <button class="${nightActive || dayActive ? 'active' : ''}" onclick="window.scrollTo({top:0,behavior:'smooth'})"><span class="ico">${nightActive ? '🌙' : '☀️'}</span>${nightActive ? 'กลางคืน' : 'กลางวัน'}</button>
     <button onclick="showHistory()"><span class="ico">📜</span>ประวัติ</button>
     ${timerBtn}
-    <button class="primary-nav${hasAlert ? ' has-alert' : ''}" onclick="showModPanel()"><span class="ico">🎛️</span>ผู้ดูแล</button>
+    <button class="primary-nav fab${hasAlert ? ' has-alert' : ''}" onclick="showModPanel()"><span class="ico">🎛️</span>ผู้ดูแล</button>
+    <button class="${nightActive || dayActive ? 'active' : ''}" onclick="window.scrollTo({top:0,behavior:'smooth'})"><span class="ico">${nightActive ? '🌙' : '☀️'}</span>${nightActive ? 'กลางคืน' : 'กลางวัน'}</button>
+    <button onclick="showHelp()"><span class="ico">❓</span>วิธีใช้</button>
   </nav>`;
 }
 
@@ -2434,7 +2447,7 @@ function renderSetup() {
     const plusDis = totalRoles() >= S.setup.n || atMax;
     const tag = atMax ? ' <span class="dim f13" style="font-weight:700">(สูงสุด 1)</span>' : '';
     return `<div class="rrow">
-      <div><div class="n">${R.icon} ${R.name}${tag}</div><div class="dd">${R.desc}</div></div>
+      <div><div class="n">${roleImg(r, 'rimg-sm')}${R.name}${tag}</div><div class="dd">${R.desc}</div></div>
       <div class="cnt">
         <button onclick="decRole('${r}')"${cnt <= 0 ? ' disabled' : ''}>−</button>
         <div class="v">${cnt}</div>
@@ -2462,17 +2475,19 @@ function renderSetup() {
         })
         .join('')
     : `<p class="dim f13 mt">ยังไม่มี — กด "💾 บันทึกชุดปัจจุบัน" เพื่อเก็บไว้ใช้ครั้งหน้า</p>`;
+  const curPreset = activePresetKind();
+  const presetBtn = (k, emoji, label) => `<button class="chip preset${curPreset === k ? ' sel' : ''}" onclick="applyPreset('${k}')">${emoji} ${label}</button>`;
   const presetCard = `<div class="card">
       <h3>⚡ Preset ชุดบทบาท</h3>
       <p class="dim f13">ใช้ชุดพร้อมเล่น แล้วปรับจำนวนบทบาททีหลังได้</p>
       <div class="grid g3 mt">
-        <button class="chip" onclick="applyPreset('std')">⚖️ มาตรฐาน</button>
-        <button class="chip" onclick="applyPreset('party')">🎉 Party</button>
-        <button class="chip" onclick="applyPreset('comp')">🏆 Competitive</button>
+        ${presetBtn('std', '⚖️', 'คลาสสิก')}
+        ${presetBtn('party', '🎉', 'ปาร์ตี้')}
+        ${presetBtn('comp', '🏆', 'แข่งขัน')}
       </div>
-      <div class="eyebrow" style="margin-top:16px">👥 จำนวนผู้เล่น (ใช้ชุดมาตรฐาน)</div>
+      <div class="eyebrow" style="margin-top:16px">👥 จำนวนผู้เล่น (ใช้ชุดคลาสสิก)</div>
       <div class="grid g4 mt">${PRESET_SIZES.map(
-        n => `<button class="chip${S.setup.n === n ? ' sel' : ''}" onclick="applySizePreset(${n})">${n} คน</button>`
+        n => `<button class="chip${S.setup.n === n ? ' sel' : ''}" onclick="applySizePreset(${n})">${n}</button>`
       ).join('')}</div>
       <div class="eyebrow" style="margin-top:16px">💾 ชุดที่บันทึกไว้</div>
       ${customRows}
@@ -2586,7 +2601,7 @@ function renderAssign() {
         color = 'var(--danger)';
         icon = '✕';
       }
-      return `<div class="pr mini"><div class="nm">${R.icon} ${R.name}</div><div style="color:${color};font-weight:700">${icon} ${u} / ${total}</div></div>`;
+      return `<div class="pr mini"><div class="nm">${roleImg(r, 'rimg-sm')}${R.name}</div><div style="color:${color};font-weight:700">${icon} ${u} / ${total}</div></div>`;
     })
     .join('');
   const playerRows = [];
@@ -2596,7 +2611,7 @@ function renderAssign() {
     const opts = allRoles
       .map(r => {
         const R = ROLES[r];
-        return `<option value="${r}"${cur === r ? ' selected' : ''}>${R.icon} ${R.name}</option>`;
+        return `<option value="${r}"${cur === r ? ' selected' : ''}>${R.name}</option>`;
       })
       .join('');
     playerRows.push(
@@ -2638,7 +2653,7 @@ function renderReveal() {
         ? `<div class="rd mt">หมาป่าตัวอื่น: ${wolves.map(w => esc(w.name)).join(', ')}</div>`
         : '';
     rvHtml = `<div class="rv ${R.faction}" onclick="hideRv()"><div>
-      <div class="ri">${R.icon}</div><div class="rn">${R.name}</div>
+      <div class="ri">${roleImg(cur.roleId)}</div><div class="rn">${R.name}</div>
       <div class="rf">${R.faction === 'wolf' ? 'ฝ่ายหมาป่า' : R.faction === 'neutral' ? 'ฝ่ายกลาง' : 'ฝ่ายชาวบ้าน'}</div>
       <div class="rd">${R.desc}</div>${wolfLine}
     </div></div>`;
@@ -2703,7 +2718,7 @@ function renderNightPanel() {
       }
       if (r === 'cursed') desc = 'แจ้งสถานะผู้เล่น (ไม่ต้องเลือก)';
       return `<button class="night-action${done ? ' done' : ''}${cls}" onclick="openN('${r}')">
-      <span class="icon">${R.icon}</span>
+      <span class="icon">${roleImg(r)}</span>
       <span class="name">${R.name}</span>
       <span class="desc">${desc}</span>
       <span class="state">${done ? '✓' : '›'}</span>
@@ -3414,7 +3429,7 @@ function renderEnd() {
       return `<div class="pr">
       <div class="nm">${esc(p.name)}${extra}${princeFlag}</div>
       <div class="row">
-        <span class="bd ${badgeCls}">${R.icon} ${R.name}</span>
+        <span class="bd ${badgeCls}">${roleImg(p.roleId, 'rimg-sm')}${R.name}</span>
         <span class="bd ${p.alive ? 'v' : 'dead'}">${p.alive ? 'มีชีวิต' : 'ตาย'}</span>
       </div>
     </div>`;

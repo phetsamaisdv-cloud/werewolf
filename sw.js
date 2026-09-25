@@ -3,7 +3,7 @@
    (ถ้า reject → navigation ทั้งหน้าล่มเป็น ERR_FAILED) */
 'use strict';
 
-const VERSION = 'v1.8.0';
+const VERSION = 'v1.9.0';
 const CACHE = 'werewolf-shell-' + VERSION;
 const NAV_TIMEOUT_MS = 5000;
 
@@ -16,6 +16,7 @@ const CORE_ASSETS = [
   './icon.svg',
   './assets/logo.png',
   './assets/hero.png',
+  './assets/role.jpg',
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/icon-maskable-192.png',

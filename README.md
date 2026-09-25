@@ -42,17 +42,18 @@ npm run serve
 
 ## โครงสร้างไฟล์
 
-| ไฟล์                                                 | หน้าที่                                                     |
-| ---------------------------------------------------- | ----------------------------------------------------------- |
-| `index.html`                                         | shell ~1.8KB โหลด CSS / JS / manifest                       |
-| `styles.css`                                         | ธีม + คอมโพเนนต์ทั้งหมด                                     |
-| `app.js`                                             | ตรรกะเกมทั้งหมด (vanilla JS, ไม่มี framework)               |
-| `sw.js`                                              | Service Worker — network-first + cache fallback + self-heal |
-| `manifest.json` + `icon.svg` + `icons/`              | PWA manifest + ไอคอน 5 แบบ                                  |
-| `test/smoke.mjs`                                     | E2E test                                                    |
-| `test/serve.mjs`                                     | dev server                                                  |
-| `eslint.config.js`, `.prettierrc`, `.prettierignore` | lint + format                                               |
-| `schemas/wrangler-config-schema.json`                | schema ของ `wrangler.jsonc` (ฝังไว้ใน repo)                 |
+| ไฟล์                                                  | หน้าที่                                                       |
+| ----------------------------------------------------- | ------------------------------------------------------------- |
+| `index.html`                                          | shell ~1.8KB โหลด CSS / JS / manifest                         |
+| `styles.css`                                          | ธีม + คอมโพเนนต์ทั้งหมด                                       |
+| `app.js`                                              | ตรรกะเกมทั้งหมด (vanilla JS, ไม่มี framework)                 |
+| `sw.js`                                               | Service Worker — network-first + cache fallback + self-heal   |
+| `manifest.json` + `icon.svg` + `icons/`               | PWA manifest + ไอคอน 5 แบบ                                    |
+| `assets/logo.png`, `assets/hero.png`, `assets/roles/` | โลโก้ + banner + **ภาพบทบาท** (3:4, `.jpg` — แทนที่ภาพเองได้) |
+| `test/smoke.mjs`                                      | E2E test                                                      |
+| `test/serve.mjs`                                      | dev server                                                    |
+| `eslint.config.js`, `.prettierrc`, `.prettierignore`  | lint + format                                                 |
+| `schemas/wrangler-config-schema.json`                 | schema ของ `wrangler.jsonc` (ฝังไว้ใน repo)                   |
 
 ## ข้อมูลเก็บอยู่ที่ไหน
 

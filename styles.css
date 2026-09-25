@@ -113,6 +113,10 @@ body {
   margin: 0 auto;
   padding: 0 20px calc(96px + env(safe-area-inset-bottom));
 }
+/* เว้นที่ให้ FAB ผู้ดูแลที่ยื่นขึ้นมาเหนือ dock */
+#app:has(.ux-bottom) {
+  padding-bottom: calc(140px + env(safe-area-inset-bottom));
+}
 
 .scr {
   display: flex;
@@ -346,6 +350,31 @@ body.light .ux-bottom button.active {
   box-shadow: 0 0 8px rgba(245, 158, 11, 0.85);
   animation: pulse 2s ease-in-out infinite;
 }
+.ux-bottom button.fab {
+  flex: 0 0 auto;
+  width: 64px;
+  height: 64px;
+  min-height: 64px;
+  margin-top: -32px;
+  border-radius: 50%;
+  background: linear-gradient(165deg, var(--primary) 0%, #7c3aed 100%);
+  color: #fff;
+  font-size: 10px;
+  gap: 1px;
+  box-shadow:
+    0 0 0 5px var(--dock-bg),
+    0 16px 28px rgba(79, 70, 229, 0.45);
+}
+.ux-bottom button.fab .ico {
+  font-size: 24px;
+}
+.ux-bottom button.fab:active {
+  transform: scale(0.93);
+}
+.ux-bottom button.fab.has-alert::after {
+  top: 7px;
+  right: 11px;
+}
 
 /* ---------- cards ---------- */
 .card {
@@ -436,6 +465,7 @@ body.light .btn.p {
   grid-template-columns: repeat(4, 1fr);
 }
 .chip {
+  position: relative;
   min-height: 54px;
   display: flex;
   flex-direction: column;
@@ -458,10 +488,31 @@ body.light .btn.p {
   transform: scale(0.97);
 }
 .chip.sel {
-  background: rgba(99, 102, 241, 0.16);
-  border-color: rgba(99, 102, 241, 0.55);
+  background: rgba(99, 102, 241, 0.18);
+  border-color: rgba(99, 102, 241, 0.7);
   color: var(--text);
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+  font-weight: 700;
+  box-shadow:
+    0 0 0 3px rgba(99, 102, 241, 0.14),
+    inset 0 0 0 1px rgba(99, 102, 241, 0.35);
+}
+.chip.preset {
+  gap: 4px;
+  font-size: 13px;
+}
+.chip.preset.sel {
+  background: linear-gradient(180deg, rgba(99, 102, 241, 0.24), rgba(124, 58, 237, 0.16));
+  border-color: rgba(99, 102, 241, 0.85);
+}
+.chip.preset.sel::after {
+  content: '✓';
+  position: absolute;
+  top: 5px;
+  right: 9px;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--primary);
 }
 .chip.sel2 {
   background: rgba(244, 63, 94, 0.12);
@@ -484,6 +535,34 @@ body.light .btn.p {
   background: rgba(244, 63, 94, 0.06);
   border-color: rgba(244, 63, 94, 0.18);
   color: var(--danger-t);
+}
+.chip.chip-row {
+  flex-direction: row;
+  align-items: center;
+  gap: 5px;
+}
+
+/* ---------- รูปบทบาท (3:4) ---------- */
+.rimg {
+  display: inline-block;
+  width: auto;
+  height: auto;
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+  vertical-align: middle;
+  background: var(--surface3);
+  border-radius: 6px;
+  box-shadow: var(--shadow-sm);
+}
+.rimg-xs {
+  width: 16px;
+  border-radius: 3px;
+  box-shadow: none;
+}
+.rimg-sm {
+  width: 22px;
+  border-radius: 4px;
+  box-shadow: none;
 }
 
 /* ---------- counters / toggles / segments ---------- */
@@ -644,6 +723,9 @@ select.role-sel {
   border-bottom: 0;
 }
 .rrow .n {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-size: 14px;
   font-weight: 700;
 }
@@ -668,6 +750,9 @@ select.role-sel {
   font-size: 13px;
 }
 .pr .nm {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-weight: 600;
   font-size: 13.5px;
   word-break: break-word;
@@ -678,6 +763,9 @@ select.role-sel {
   gap: 8px;
 }
 .bd {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   padding: 3px 9px;
   border-radius: 8px;
   font-size: 11px;
@@ -850,14 +938,18 @@ select.role-sel {
   background: linear-gradient(150deg, rgba(16, 185, 129, 0.07), var(--surface) 65%);
 }
 .night-action .icon {
-  width: 44px;
-  height: 44px;
-  border-radius: 13px;
-  display: grid;
-  place-items: center;
-  background: var(--surface3);
-  font-size: 21px;
+  display: block;
+  width: 46px;
+  border-radius: 12px;
+  overflow: hidden;
   margin-bottom: 12px;
+  line-height: 0;
+}
+.night-action .icon .rimg {
+  display: block;
+  width: 100%;
+  border-radius: 0;
+  box-shadow: none;
 }
 .night-action .name {
   font-size: 15px;
@@ -899,7 +991,7 @@ select.role-sel {
   position: fixed;
   left: 50%;
   transform: translateX(-50%);
-  bottom: calc(80px + env(safe-area-inset-bottom));
+  bottom: calc(126px + env(safe-area-inset-bottom));
   width: min(640px, calc(100% - 40px));
   z-index: 35;
 }
@@ -999,14 +1091,14 @@ select.role-sel {
   transform: scale(0.99);
 }
 .rv .ri {
-  width: 80px;
-  height: 80px;
+  width: min(200px, 64%);
   margin: 0 auto 20px;
-  display: grid;
-  place-items: center;
-  border-radius: 24px;
-  background: var(--surface3);
-  font-size: 40px;
+}
+.rv .ri .rimg {
+  display: block;
+  width: 100%;
+  border-radius: 18px;
+  box-shadow: var(--shadow);
 }
 .rv .rn {
   font-size: 34px;
