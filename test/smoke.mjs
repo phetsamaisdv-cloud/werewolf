@@ -322,6 +322,46 @@ async function main() {
     check('S3 ชาวบ้านธรรมดาเหลือ 1', setupInfo.vill === 1, `vill=${setupInfo.vill}`);
     check('S3 balanceWarnings ไม่มีข้อร้ายแรง', setupInfo.warn === 0, `warn=${setupInfo.warn}`);
 
+    /* ===== S3b: preset ชุดบทบาท ===== */
+    const presetUi = await ev('document.getElementById("app").innerText');
+    check('S3b การ์ด preset แสดงในหน้าตั้งค่า', presetUi.toUpperCase().includes('PRESET ชุดบทบาท'));
+
+    const presetInfo = await ev(`(async () => {
+      const snap = {n:S.setup.n, names:S.setup.names.slice(), roles:Object.assign({}, S.setup.roles), mode:S.setup.assignMode};
+      const bad = [];
+      for(const k of ['std','party','comp']){
+        for(let n=4;n<=18;n++){
+          applyPreset(k, n);
+          const w = (S.setup.roles.werewolf||0) + (S.setup.roles.wolfcub||0);
+          const v = S.setup.n - w;
+          const warn = balanceWarnings().filter(x => x.indexOf('⚠') === 0);
+          if(!canStart()) bad.push(k+n+':canStart');
+          if(totalRoles() > S.setup.n) bad.push(k+n+':overflow');
+          if(villagerCount() < 1) bad.push(k+n+':noVillager');
+          if(w >= v) bad.push(k+n+':wolves=' + w + '/' + v);
+          if(warn.length) bad.push(k+n+':warn=' + warn.join(','));
+        }
+      }
+      localStorage.removeItem('werewolf_presets');
+      applyPreset('party', 8);
+      savePreset();
+      const saved = readPresets();
+      const savedId = saved[0] ? saved[0].id : null;
+      applyPreset('std', 4);
+      loadCustomPreset(savedId);
+      const loadedOk = S.setup.n === 8 && S.setup.roles.fool === 1 && S.setup.roles.cupid === 1;
+      const dp = deleteCustomPreset(savedId);
+      const dlgOk = document.querySelector('#dialogOverlay [data-dlg="1"]');
+      if(dlgOk) dlgOk.click();
+      await dp;
+      const gone = readPresets().length === 0;
+      S.setup.n = snap.n; S.setup.names = snap.names; S.setup.roles = snap.roles; S.setup.assignMode = snap.mode;
+      render();
+      return {bad, loadedOk, gone, savedCount: saved.length};
+    })()`) || {};
+    check('S3b preset 3 ชุด x 4-18 คน เล่นได้จริง (canStart/ไม่ล้น/มีชาวบ้าน/ไม่มี ⚠)', Array.isArray(presetInfo.bad) && presetInfo.bad.length === 0, JSON.stringify(presetInfo.bad || []));
+    check('S3b บันทึก → โหลด → ลบ custom preset ได้', presetInfo.loadedOk === true && presetInfo.gone === true && presetInfo.savedCount === 1, JSON.stringify(presetInfo));
+
     await ev('startGame()');
     check('S3 manual mode → หน้าจัดบทบาท', (await ev('S.screen')) === 'assign');
     check('S3 บทบาทในตารางถูกต้อง (isAssignValid)', await ev('isAssignValid()') === true);

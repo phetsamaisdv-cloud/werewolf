@@ -14,7 +14,7 @@ npm test          # หรือ: node test/smoke.mjs
 ```
 
 - ไม่ต้องติดตั้ง dependency — ใช้ Node http server + Chrome DevTools Protocol ตรง ๆ (ต้องมี Chrome/Edge)
-- ครอบคลุม **39 checks**: boot/theme/setup/manual assign/reveal/เล่นจบเกมครบทุกเฟส/boss ทุกบทบาท,
+- ครอบคลุม **42 checks**: boot/theme/setup/manual assign/reveal/เล่นจบเกมครบทุกเฟส/boss ทุกบทบาท,
   บันทึก-เล่นต่อ (reload กลางเกม), undo แขวนคอ, moderator panel, history, XSS, จับเวลา,
   dialog ของแอปแทน native `confirm()`/`alert()`, PWA (SW + cache + ออฟไลน์),
   ไม่มี JS exception / 404
@@ -44,6 +44,7 @@ npm test          # หรือ: node test/smoke.mjs
 - [ ] โหมด 🎲 สุ่มอัตโนมัติ → เข้าหน้าแจกการ์ดทันที
 - [ ] โหมด ✋ กำหนดเอง → เข้าหน้า "จัดบทบาท" · เปลี่ยนบทบาทได้ · validator บอก "บทบาทครบพอดี"
 - [ ] ปุ่ม "สุ่มใหม่" / "ล้างบทบาท" (ขึ้น dialog ยืนยันของแอป) ทำงาน
+- [ ] Preset: กด `⚖️ มาตรฐาน` / `🎉 Party` / `🏆 Competitive` → บทบาทเปลี่ยนตาม · ชิป 4/6/8/10/12/14/16 คน → เปลี่ยนจำนวน+ชุดตาม · บันทึกชุดปัจจุบัน → แสดงในรายการ → ใช้ ✓ / ลบ ✕ (มี dialog ยืนยัน)
 - [ ] หน้าแจกการ์ด (Reveal) → กดถัดไปทีละคน มีจุดแสดงความคืบหน้า + นับ "ตรวจแล้ว N" · หมาป่าเห็นชื่อหมาป่าด้วยกัน
 
 ## 2. กลางคืน — เรียกครบทุกบทบาท

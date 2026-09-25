@@ -25,7 +25,7 @@
 | `styles.css` | ~23 KB | ✅ ธีม dark/light, การ์ด, ปุ่ม, แอนิเมชัน, responsive |
 | `app.js` | ~110 KB | ✅ ตรรกะเกมทั้งหมด (แยกมาจากเดิมเมื่อ 25 ก.ย. 2026) — เวอร์ชัน **10.0** (SAVE_KEY `werewolf_v9`) |
 | `manifest.json` | 1 KB | ✅ PWA manifest (ชื่อ, scope, ไอคอน 5 แบบ) |
-| `sw.js` | ~2 KB | ✅ Service Worker v1.1.0 — cache shell + ทำงานออฟไลน์ได้ |
+| `sw.js` | ~2 KB | ✅ Service Worker v1.3.0 — cache shell + ทำงานออฟไลน์ได้ |
 | `icon.svg` + `icons/*.png` | 6 ไฟล์ | ✅ ไอคอน 180/192/512 + maskable |
 | `TESTING.md` | — | ✅ Smoke test checklist (manual) |
 | `test/smoke.mjs` | — | ✅ E2E test อัตโนมัติ 35 checks (`npm test`) |
@@ -133,7 +133,7 @@ BOOT        load → applyTheme → render → ลงทะเบียน servi
 ### 4.1 โครงสร้างและวิศวกรรม (Engineering)
 - ✅ **Version Control** — มี git repo แล้ว (branch `main`, commit baseline แล้ว) — *ทำเสร็จในรอบ P0*
 - ❌ **ไม่มี build / lint / format** — ไม่มี ESLint, Prettier, ไม่มี `package.json`
-- ✅ **Test อัตโนมัติ (E2E)** — `test/smoke.mjs` (Node + Chrome DevTools Protocol, 39 checks, ไม่มี dependency) รันด้วย `npm test` — *ทำเสร็จในรอบ P1*
+- ✅ **Test อัตโนมัติ (E2E)** — `test/smoke.mjs` (Node + Chrome DevTools Protocol, 42 checks, ไม่มี dependency) รันด้วย `npm test` — *ทำเสร็จในรอบ P1*
 - ⬜ **Test manual ครบทุกข้อ** — ยังต้องเดิน `TESTING.md` ด้วยมือบนมือถือจริงก่อนปล่อย
 - ❌ **Monolith** — CSS + HTML + JS อยู่ในไฟล์เดียว, ~137 KB, แยกชั้นไม่ได้ แก้ส่วนหนึ่งอาจพังส่วนอื่น
 - ❌ **ใช้ global functions + `onclick` inline ทั้งหมด** — ยากต่อการ refactor/ติดบั๊ก, ไม่มี module
@@ -172,16 +172,16 @@ BOOT        load → applyTheme → render → ลงทะเบียน servi
 2. **ย้าย `InDexBlackUp.html`** — ✅ ย้ายไป `archive/InDexBlackUp.v9.6.html` (ประวัติเก่าอยู่ใน git แล้ว)
 3. **เพิ่ม PWA** — ✅
    - `manifest.json` (ชื่อไทย, `display: standalone`, scope `./`, ไอคอน 5 แบบ)
-   - `sw.js` (v1.0.0 → v1.2.0) — precache shell, cache-first + revalidate ตอนหลัง, cleanup cache เก่า, fallback ข้อความออฟไลน์
+   - `sw.js` (v1.0.0 → v1.3.0) — precache shell, cache-first + revalidate ตอนหลัง, cleanup cache เก่า, fallback ข้อความออฟไลน์
    - ไอคอน `icon.svg` + `icons/icon-180|192|512.png` + `icons/icon-maskable-192|512.png`
    - `index.html`: เพิ่ม `<link rel="manifest">`, `apple-touch-icon` เป็น PNG จริง, meta description, และลงทะเบียน SW (เฉพาะ http/localhost)
    - **ผลทดสอบอัตโนมัติผ่านแล้ว**: SW registered + controlling, cache ครบ 10 รายการ, จำลอง Offline แล้วรีเฟรช → แอปโหลดได้
 4. **Smoke test checklist** — ✅ เขียน `TESTING.md` ครบทั้ง 8 หัวข้อ (ตั้งค่า/กลางคืน/รุ่งเช้า/โหวต/เคสชนะ/save/PWA/UX) — **ยังไม่ได้เดิน test จริงทุกข้อ ต้องทำก่อนปล่อย**
 
 ### 🟡 P1 — ทำต่อ (คุณภาพชีวิต + ลดบั๊ก)
-5. ✅ **แยกไฟล์** → `index.html` (shell 1.7KB) + `styles.css` + `app.js` — *ทำเสร็จแล้ว* (มี E2E test ยืนยัน 39/39 + ทดสอบออฟไลน์ผ่าน)
-6. ✅ **แทนที่ `confirm()`/`alert()` ทั้งหมด** — *ทำเสร็จแล้ว*: เพิ่ม `showDialog()/askConfirm()/askAlert()` (overlay `#dialogOverlay`, รองรับ Enter/Esc, backdrop click, `danger`/`single` mode) แทน native 12 จุด (`clearSave`, `continueGame`, `confirmLeaveGame`, `resetAssign`, `endNight`, `confirmSkipVote`, `resetVotes`, `finishVoting`, `modStart`, `copyResults`, `fallbackCopy`) — **E2E 39/39 ผ่าน** (`sw.js` bump เป็น v1.2.0)
-7. **เพิ่ม Preset ชุดบทบาท** — ปุ่ม "โหลด preset" เช่น `4-6-8-10-12 คน มาตรฐาน` / `Party` / `Competitive` + บันทึกลง `localStorage`
+5. ✅ **แยกไฟล์** → `index.html` (shell 1.7KB) + `styles.css` + `app.js` — *ทำเสร็จแล้ว* (มี E2E test ยืนยัน 42/42 + ทดสอบออฟไลน์ผ่าน)
+6. ✅ **แทนที่ `confirm()`/`alert()` ทั้งหมด** — *ทำเสร็จแล้ว*: เพิ่ม `showDialog()/askConfirm()/askAlert()` (overlay `#dialogOverlay`, รองรับ Enter/Esc, backdrop click, `danger`/`single` mode) แทน native 12 จุด (`clearSave`, `continueGame`, `confirmLeaveGame`, `resetAssign`, `endNight`, `confirmSkipVote`, `resetVotes`, `finishVoting`, `modStart`, `copyResults`, `fallbackCopy`) — **E2E 42/42 ผ่าน** (`sw.js` bump เป็น v1.3.0)
+7. ✅ **เพิ่ม Preset ชุดบทบาท** — *ทำเสร็จแล้ว*: การ์ด "⚡ Preset ชุดบทบาท" ในหน้าตั้งค่า — 3 ชุดพร้อมใช้ (`⚖️ มาตรฐาน` / `🎉 Party` / `🏆 Competitive` สร้างตามจำนวนผู้เล่น 4-18 คน ผ่าน `canStart()` + ไม่มี ⚠ ทุกขนาด) + ชิปจำนวนผู้เล่น 4/6/8/10/12/14/16 คน (โหลดชุดมาตรฐานให้) + **บันทึก/โหลด/ลบชุดเอง** เก็บใน `localStorage` key `werewolf_presets` (สูงสุด 10 ชุด, ลบมี dialog ยืนยัน) — **E2E 42/42 ผ่าน**
 8. **หลาย slot บันทึกเกม** + ปุ่ม "ดูเกมที่เล่นไปแล้ว" (เก็บผลย้อนหลัง 10 เกมล่าสุด)
 9. **เพิ่มเสียงแจ้งเตือน** (Web Audio สร้างจาก oscillator แบบ `beep()` หรือไฟล์ `.mp3` เล็ก ๆ) สำหรับ: หมดเวลา, จบกลางคืน, ประกาศผลโหวต
 10. **Error boundary** ครอบ `render()` ด้วย try/catch → แสดงหน้า "เกิดข้อผิดพลาด กดเพื่อกลับหน้าแรก" แทนหน้าขาว
@@ -206,10 +206,10 @@ BOOT        load → applyTheme → render → ลงทะเบียน servi
 | Undo / History / Save-Resume | ✅ มี |
 | ธีม, จับเวลา, Wake Lock, Haptic | ✅ มี |
 | **P0: Git / archive / PWA / checklist** | ✅ **เสร็จแล้ว** |
-| Smoke test จริงครบทุกข้อใน `TESTING.md` | ⬜ ยังไม่ได้ทำ (แต่มี E2E 39/39 แทน) |
+| Smoke test จริงครบทุกข้อใน `TESTING.md` | ⬜ ยังไม่ได้ทำ (แต่มี E2E 42/42 แทน) |
 | README / Tests / Lint | 🟡 มี README + E2E test แล้ว (ยังไม่มี lint) |
 | แยกไฟล์ / modular | ✅ `index.html` + `styles.css` + `app.js` |
 | แทน `confirm()`/`alert()` ด้วย dialog ของแอป | ✅ ทำเสร็จแล้ว |
 | เสียงแจ้งเตือน / preset / multi-slot | ❌ ยังไม่มี |
 
-**ทำเสร็จแล้ว:** P0 ทั้ง 4 ข้อ + P1 #5 แยกไฟล์ + P1 #6 แทน `confirm()/alert()` → **ต่อไป:** P1 #7 preset ชุดบทบาท → #8 multi-slot → #9 เสียง → #10 error boundary (แล้วค่อยเดิน `TESTING.md` ด้วยมือก่อนปล่อย)
+**ทำเสร็จแล้ว:** P0 ทั้ง 4 ข้อ + P1 #5 แยกไฟล์ + P1 #6 แทน `confirm()/alert()` + P1 #7 preset → **ต่อไป:** P1 #8 multi-slot → #9 เสียง → #10 error boundary (แล้วค่อยเดิน `TESTING.md` ด้วยมือก่อนปล่อย)

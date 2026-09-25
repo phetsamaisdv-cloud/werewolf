@@ -413,6 +413,119 @@ function toggleSetup(k){ S.setup[k] = !S.setup[k]; applyTheme(); render(); }
 function setTheme(t){ S.setup.theme = t; applyTheme(); render(); }
 function setFont(f){ S.setup.fontSize = f; applyTheme(); render(); }
 function setAssignMode(m){ S.setup.assignMode = m; render(); }
+
+/* ========== PRESET ชุดบทบาท ========== */
+const PRESET_KEY = 'werewolf_presets';
+const PRESET_SIZES = [4,6,8,10,12,14,16];
+const TRIM_ORDER = ['grandma','prince','infected','fool','cursed','mayor','cupid','bodyguard','doctor','hunter','wolfcub','seer','witch','werewolf'];
+
+function zeroRoles(){ const o = {}; for(const r of SPECIAL) o[r] = 0; return o; }
+function setPresetN(n){
+  if(n < 4 || n > 18) return;
+  S.setup.n = n;
+  while(S.setup.names.length < n) S.setup.names.push(String.fromCharCode(65 + (S.setup.names.length % 26)));
+  S.setup.names = S.setup.names.slice(0, n);
+}
+function clampRoles(){
+  while(totalRoles() > S.setup.n){
+    const r = TRIM_ORDER.find(x => (S.setup.roles[x] || 0) > 0);
+    if(!r) break;
+    S.setup.roles[r]--;
+  }
+}
+function presetRoles(kind, n){
+  const R = zeroRoles();
+  const wolves = n <= 5 ? 1 : n <= 9 ? 2 : n <= 15 ? 3 : 4;
+  R.werewolf = wolves;
+  R.seer = 1; R.witch = 1;
+  if(kind === 'party'){
+    if(n >= 6) R.cupid = 1;
+    if(n >= 8) R.fool = 1;
+    if(n >= 9) R.cursed = 1;
+    if(n >= 10) R.mayor = 1;
+    if(n >= 11) R.infected = 1;
+    if(n >= 12){ R.werewolf = Math.max(1, wolves - 1); R.wolfcub = 1; R.prince = 1; }
+    if(n >= 14) R.grandma = 1;
+    if(n >= 16) R.doctor = 1;
+  } else if(kind === 'comp'){
+    if(n >= 6) R.hunter = 1;
+    if(n >= 8) R.doctor = 1;
+    if(n >= 10) R.bodyguard = 1;
+    if(n >= 12){ R.mayor = 1; R.prince = 1; }
+    if(n >= 14) R.grandma = 1;
+    if(n >= 16) R.infected = 1;
+  } else {
+    if(n >= 6) R.hunter = 1;
+    if(n >= 8){ R.doctor = 1; R.mayor = 1; }
+    if(n >= 10) R.cupid = 1;
+    if(n >= 11) R.bodyguard = 1;
+    if(n >= 12) R.cursed = 1;
+    if(n >= 14) R.prince = 1;
+    if(n >= 16) R.infected = 1;
+  }
+  let total = 0; for(const r of SPECIAL) total += R[r];
+  while(total > n - 1){
+    const r = TRIM_ORDER.find(x => R[x] > 0 && x !== 'werewolf' && x !== 'seer' && x !== 'witch');
+    if(!r) break;
+    R[r]--; total--;
+  }
+  return R;
+}
+function applyPreset(kind, n){
+  const target = n || S.setup.n;
+  setPresetN(target);
+  S.setup.roles = presetRoles(kind, target);
+  vibrate(10);
+  render();
+}
+function applySizePreset(n){ applyPreset('std', n); }
+
+function readPresets(){
+  try{
+    const raw = localStorage.getItem(PRESET_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    return Array.isArray(arr) ? arr : [];
+  }catch(e){ return []; }
+}
+function writePresets(arr){
+  try{ localStorage.setItem(PRESET_KEY, JSON.stringify(arr.slice(0, 10))); return true; }
+  catch(e){ return false; }
+}
+function savePreset(){
+  const d = new Date();
+  const pad = v => String(v).padStart(2, '0');
+  const name = S.setup.n + ' คน · ' + d.getDate() + '/' + (d.getMonth()+1) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+  const arr = readPresets();
+  arr.unshift({ id:'p' + Date.now() + '_' + Math.floor(Math.random()*10000), name, n:S.setup.n, roles:Object.assign({}, S.setup.roles) });
+  if(!writePresets(arr)){
+    askAlert('บันทึกไม่สำเร็จ — พื้นที่จัดเก็บอาจเต็ม', 'บันทึก preset');
+    return;
+  }
+  vibrate([30,40,30]);
+  render();
+}
+function loadCustomPreset(id){
+  const p = readPresets().find(x => x.id === id);
+  if(!p) return;
+  setPresetN(Number(p.n) || S.setup.n);
+  const roles = zeroRoles();
+  for(const r of SPECIAL){
+    const v = Math.floor(Number(p.roles ? p.roles[r] : 0) || 0);
+    if(v > 0) roles[r] = v;
+  }
+  S.setup.roles = roles;
+  clampRoles();
+  vibrate(10);
+  render();
+}
+async function deleteCustomPreset(id){
+  const arr = readPresets();
+  const p = arr.find(x => x.id === id);
+  if(!p) return;
+  if(!await askConfirm('ลบชุด "' + p.name + '"?', 'ลบ preset', {danger:true, okLabel:'ลบ'})) return;
+  writePresets(arr.filter(x => x.id !== id));
+  render();
+}
 function canStart(){
   if(totalRoles() > S.setup.n) return false;
   const w = S.setup.roles.werewolf + S.setup.roles.wolfcub;
@@ -1654,6 +1767,36 @@ function renderSetup(){
   const villageSection = VILLAGE_GROUP.map(roleRow).join('');
   const neutralSection = NEUTRAL_GROUP.map(roleRow).join('');
   const warnings = balanceWarnings();
+  const customPresets = readPresets();
+  const customRows = customPresets.length
+    ? customPresets.map(p => {
+        const cnt = SPECIAL.reduce((s,r) => s + (Math.floor(Number(p.roles && p.roles[r]) || 0)), 0);
+        const w = (Math.floor(Number(p.roles && p.roles.werewolf) || 0)) + (Math.floor(Number(p.roles && p.roles.wolfcub) || 0));
+        return `<div class="rrow">
+          <div><div class="n">💾 ${esc(p.name)}</div><div class="dd">${p.n} คน · บทบาท ${cnt} · หมาป่า ${w}</div></div>
+          <div class="cnt">
+            <button title="ใช้ชุดนี้" onclick="loadCustomPreset('${esc(p.id)}')">✓</button>
+            <button title="ลบชุดนี้" onclick="deleteCustomPreset('${esc(p.id)}')">✕</button>
+          </div>
+        </div>`;
+      }).join('')
+    : `<p class="dim f13 mt">ยังไม่มี — กด "💾 บันทึกชุดปัจจุบัน" เพื่อเก็บไว้ใช้ครั้งหน้า</p>`;
+  const presetCard = `<div class="card">
+      <h3>⚡ Preset ชุดบทบาท</h3>
+      <p class="dim f13">ใช้ชุดพร้อมเล่น แล้วปรับจำนวนบทบาททีหลังได้</p>
+      <div class="grid g3 mt">
+        <button class="chip" onclick="applyPreset('std')">⚖️ มาตรฐาน</button>
+        <button class="chip" onclick="applyPreset('party')">🎉 Party</button>
+        <button class="chip" onclick="applyPreset('comp')">🏆 Competitive</button>
+      </div>
+      <div class="eyebrow" style="margin-top:16px">👥 จำนวนผู้เล่น (ใช้ชุดมาตรฐาน)</div>
+      <div class="grid g4 mt">${PRESET_SIZES.map(n =>
+        `<button class="chip${S.setup.n === n ? ' sel' : ''}" onclick="applySizePreset(${n})">${n} คน</button>`
+      ).join('')}</div>
+      <div class="eyebrow" style="margin-top:16px">💾 ชุดที่บันทึกไว้</div>
+      ${customRows}
+      ${btn('💾 บันทึกชุดปัจจุบัน', 'savePreset()', {sm:1})}
+    </div>`;
   const warnHtml = warnings.length ? warnings.map(w => notice(w, 'wr', true)).join('') : '';
   const err = !canStart() ? notice('ยังไม่พร้อม: ต้องมีหมาป่าอย่างน้อย 1 ตัว และน้อยกว่าจำนวนชาวบ้าน', 'dg') : '';
   const manualHint = S.setup.assignMode === 'manual' ? `<div class="dim f13 mt tc">หลังกดปุ่มด้านล่าง จะเข้าสู่หน้า "จัดบทบาท"</div>` : '';
@@ -1667,6 +1810,7 @@ function renderSetup(){
         <button onclick="chgN(1)"${S.setup.n>=18?' disabled':''}>+</button>
       </div>
     </div>
+    ${presetCard}
     <div class="card">
       <h3>ชื่อผู้เล่น</h3>
       <div class="lst mt">${nameInputs}</div>
