@@ -1,7 +1,7 @@
 /* Service Worker — offline shell สำหรับ คืนหอนหลอนหมาป่า */
 'use strict';
 
-const VERSION = 'v1.3.0';
+const VERSION = 'v1.4.0';
 const CACHE = 'werewolf-shell-' + VERSION;
 
 const CORE_ASSETS = [

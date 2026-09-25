@@ -26,6 +26,10 @@ const NEUTRAL_GROUP = ['fool'];
 const SINGLETON_ROLES = ['wolfcub','seer','witch','hunter','doctor','bodyguard','cupid','mayor','cursed','fool','infected','prince','grandma'];
 const SAVE_KEY = 'werewolf_v9';
 const VER = '10.0';
+const SLOT_IDX_KEY = 'werewolf_slot_idx';
+const SLOT_COUNT = 3;
+const HISTORY_KEY = 'werewolf_history';
+const WINNER_LABEL = {village:'🏘️ ชาวบ้าน', werewolf:'🐺 หมาป่า', lovers:'💘 คู่รัก', fool:'🃏 คนโง่'};
 
 const LOGO_SVG = `<svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" class="wolf-logo">
   <defs>
@@ -164,9 +168,52 @@ function applyTheme(){
 }
 
 /* ========== SAVE / LOAD ========== */
+let ACTIVE_SLOT = 1;
+function slotKeyFor(i){ return i === 1 ? SAVE_KEY : SAVE_KEY + '_s' + i; }
+function saveKey(){ return slotKeyFor(ACTIVE_SLOT); }
+function slotState(i){
+  try{
+    const raw = localStorage.getItem(slotKeyFor(i));
+    if(!raw) return 'empty';
+    const d = JSON.parse(raw);
+    if(d && d.g && d.g.players && d.g.players.length) return d.g.winner ? 'ended' : 'game';
+    const eff = (d && (d.resumeScreen || d.screen)) || null;
+    if(eff === 'assign' && d.ui && d.ui.assign && Object.keys(d.ui.assign).length) return 'assign';
+    return 'empty';
+  }catch(e){ return 'empty'; }
+}
+const SLOT_LABEL = {game:'มีเกม', ended:'จบแล้ว', assign:'จัดบทบาท', empty:'ว่าง'};
+function initSlots(){
+  try{
+    const v = parseInt(localStorage.getItem(SLOT_IDX_KEY), 10);
+    ACTIVE_SLOT = (v >= 1 && v <= SLOT_COUNT) ? v : 1;
+  }catch(e){ ACTIVE_SLOT = 1; }
+}
+function slotList(){
+  const out = [];
+  for(let i=1;i<=SLOT_COUNT;i++){
+    const state = slotState(i);
+    out.push({i, active:i === ACTIVE_SLOT, state, label:SLOT_LABEL[state], info:getSaveInfo(slotKeyFor(i))});
+  }
+  return out;
+}
+function switchSlot(i){
+  if(i < 1 || i > SLOT_COUNT) return;
+  if(i !== ACTIVE_SLOT){
+    ACTIVE_SLOT = i;
+    try{ localStorage.setItem(SLOT_IDX_KEY, String(i)); }catch(e){}
+  }
+  S.g = null; S.ui = newUI();
+  load(false);
+  const cur = S.screen;
+  if(cur && cur !== 'home' && cur !== 'end') S.ui.resumeScreen = cur;
+  S.screen = 'home';
+  vibrate(10);
+  render();
+}
 function save(){
   try{
-    localStorage.setItem(SAVE_KEY, JSON.stringify({
+    localStorage.setItem(saveKey(), JSON.stringify({
       screen:S.screen, g:S.g, ui:S.ui, setup:S.setup, ver:VER,
       resumeScreen: S.ui.resumeScreen || null
     }));
@@ -174,7 +221,7 @@ function save(){
 }
 function load(useResume){
   try{
-    const raw = localStorage.getItem(SAVE_KEY);
+    const raw = localStorage.getItem(saveKey());
     if(!raw) return false;
     const d = JSON.parse(raw);
     if(d.setup){
@@ -195,6 +242,7 @@ function load(useResume){
       if(!S.g.seerChecks) S.g.seerChecks = [];
       if(S.g.wolvesInfectedRound === undefined) S.g.wolvesInfectedRound = null;
       if(S.g.grandmaLastTarget === undefined) S.g.grandmaLastTarget = null;
+      if(!S.g.night) S.g.night = emptyNight();
       if(S.g.night){
         if(S.g.night.witchUsedTonight === undefined) S.g.night.witchUsedTonight = false;
         if(S.g.night.witchSkipped === undefined) S.g.night.witchSkipped = false;
@@ -228,7 +276,8 @@ function load(useResume){
     } else {
       S.g = null;
       S.ui.resumeScreen = null;
-      if(d.screen === 'assign' && S.ui.assign && Object.keys(S.ui.assign).length > 0){
+      const isAssign = (d.screen === 'assign' || d.resumeScreen === 'assign') && S.ui.assign && Object.keys(S.ui.assign).length > 0;
+      if(isAssign){
         S.screen = 'assign';
       } else {
         S.screen = 'home';
@@ -237,9 +286,9 @@ function load(useResume){
     return true;
   }catch(e){ return false; }
 }
-function getSaveInfo(){
+function getSaveInfo(key){
   try{
-    const raw = localStorage.getItem(SAVE_KEY);
+    const raw = localStorage.getItem(key || saveKey());
     if(!raw) return null;
     const d = JSON.parse(raw);
     if(!d) return null;
@@ -248,7 +297,7 @@ function getSaveInfo(){
     if(d.g && d.g.players && d.g.players.length > 0){
       return {screen:effectiveScreen, round:d.g.round||1, players:d.g.players.length, screenLabel:getScreenLabel(effectiveScreen)};
     }
-    if(d.screen === 'assign' && d.ui && d.ui.assign && Object.keys(d.ui.assign).length > 0){
+    if((effectiveScreen === 'assign') && d.ui && d.ui.assign && Object.keys(d.ui.assign).length > 0){
       return {screen:'assign', round:0, players:Object.keys(d.ui.assign).length, screenLabel:'จัดบทบาท'};
     }
     return null;
@@ -260,8 +309,8 @@ function getScreenLabel(screen){
 }
 function hasSave(){ return !!getSaveInfo(); }
 async function clearSave(){
-  if(!await askConfirm('ลบข้อมูลเก่าทั้งหมด?', 'ลบข้อมูล', {danger:true, okLabel:'ลบ'})) return;
-  try{ localStorage.removeItem(SAVE_KEY); }catch(e){}
+  if(!await askConfirm('ลบข้อมูลเกมในช่อง ' + ACTIVE_SLOT + '?', 'ลบข้อมูล', {danger:true, okLabel:'ลบ'})) return;
+  try{ localStorage.removeItem(saveKey()); }catch(e){}
   S.g = null; S.ui = newUI(); S.screen = 'home';
   stopT(); releaseWake(); render();
 }
@@ -567,6 +616,9 @@ function startGame(){
   }
   createGameFromDeck(deck);
 }
+function emptyNight(){
+  return {killTarget:null, killTarget2:null, savedByWitch:false, savedByWitchTarget:null, poisonTarget:null, doctorTarget:null, bodyguardTarget:null, witchUsedTonight:false, witchSkipped:false, wolfCubBonusActive:false, grandmaTarget:null};
+}
 function createGameFromDeck(deck){
   const players = [];
   for(let i=0;i<S.setup.n;i++){
@@ -580,7 +632,7 @@ function createGameFromDeck(deck){
   }
   S.g = {
     round:1, players,
-    night:{killTarget:null, killTarget2:null, savedByWitch:false, savedByWitchTarget:null, poisonTarget:null, doctorTarget:null, bodyguardTarget:null, witchUsedTonight:false, witchSkipped:false, wolfCubBonusActive:false, grandmaTarget:null},
+    night:emptyNight(),
     prevBodyguardTarget:null,
     wolfCubDead:false,
     wolvesInfectedRound:null,
@@ -1338,6 +1390,56 @@ function goToNight(){
 }
 
 /* ========== WIN ========== */
+/* ========== ประวัติเกม (เก็บ 10 เกมล่าสุด) ========== */
+function readHistory(){
+  try{
+    const a = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+    return Array.isArray(a) ? a : [];
+  }catch(e){ return []; }
+}
+function writeHistory(arr){
+  try{ localStorage.setItem(HISTORY_KEY, JSON.stringify(arr.slice(0, 10))); }catch(e){}
+}
+function recordGameEnd(win){
+  if(!S.g || S.g.recordedEnd) return;
+  S.g.recordedEnd = true;
+  try{
+    const hist = readHistory();
+    hist.unshift({
+      ts: Date.now(),
+      n: S.g.players.length,
+      round: S.g.round || 1,
+      winner: win.winner,
+      reason: win.reason || '',
+      players: S.g.players.map(p => ({name:p.name, roleId:p.roleId, alive:p.alive}))
+    });
+    writeHistory(hist);
+  }catch(e){}
+}
+function showGameHistory(){
+  const hist = readHistory();
+  if(!hist.length){
+    openSheet('📖 ผลย้อนหลัง', '<div class="dim f13" style="padding:12px 0">ยังไม่มีเกมที่เล่นจบ — เกมที่จบจะถูกบันทึกไว้ 10 เกมล่าสุด</div>');
+    return;
+  }
+  const items = hist.map(h => {
+    const d = new Date(h.ts || 0);
+    const pad = v => String(v).padStart(2, '0');
+    const when = d.getDate() + '/' + (d.getMonth()+1) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+    const wLabel = WINNER_LABEL[h.winner] || h.winner || '—';
+    const chips = (h.players || []).map(p => {
+      const R = ROLES[p.roleId];
+      return `<span class="chip" style="min-height:auto;padding:4px 8px;font-size:11px;${p.alive ? '' : 'opacity:.5;text-decoration:line-through'}">${esc(p.name)} · ${R ? R.icon + R.name : esc(p.roleId)}</span>`;
+    }).join('');
+    return `<div class="log-item ${h.winner === 'werewolf' ? 'death' : 'info'}">
+      <div class="meta">${when} · ${h.n} คน · จบวันที่ ${h.round}</div>
+      <div><b>${wLabel}</b> — ${esc(h.reason || '')}</div>
+      <div class="row" style="margin-top:8px">${chips}</div>
+    </div>`;
+  }).join('');
+  openSheet('📖 ผลย้อนหลัง (' + hist.length + ' เกมล่าสุด)', items);
+}
+
 function checkWin(){
   const arr = alive();
   const wolves = arr.filter(p => isWolfTeam(p));
@@ -1361,6 +1463,7 @@ function endGame(win){
   stopT(); releaseWake();
   addLog('info', '🏆 เกมจบ — '+win.reason);
   S.screen = 'end';
+  recordGameEnd(win);
   vibrate([200,100,200,100,300]);
   render();
 }
@@ -1373,7 +1476,7 @@ function winnerText(){
        : '—';
 }
 function newGameEnd(){
-  try{ localStorage.removeItem(SAVE_KEY); }catch(e){}
+  try{ localStorage.removeItem(saveKey()); }catch(e){}
   S.g = null; S.ui = newUI(); S.screen = 'setup';
   render();
 }
@@ -1700,7 +1803,15 @@ function render(){
 function renderHome(){
   const info = getSaveInfo();
   const hasAny = !!info;
+  const slots = slotList();
+  const anySlotData = slots.some(s => s.state !== 'empty');
   const saveBlock = info ? `<div class="home-save">💾 มีเกมค้างอยู่ · ${info.screenLabel} วันที่ ${info.round} · ${info.players} คน</div>` : '';
+  const slotBlock = anySlotData ? `<div class="row" style="margin-top:10px">${slots.map(s => `
+      <button class="chip${s.active ? ' sel' : ''}" style="flex:1" onclick="switchSlot(${s.i})">
+        <div>${s.active ? '▶ ' : ''}ช่อง ${s.i}</div>
+        <div class="f13" style="font-weight:600;color:${s.state === 'game' ? 'var(--success)' : s.state === 'empty' ? 'var(--muted2)' : 'var(--muted)'}">${s.label}</div>
+      </button>`).join('')}</div>` : '';
+  const histCount = readHistory().length;
   return `<div class="scr home-screen">
     <div class="home-logo">${LOGO_SVG}</div>
     <h1>คืนหอนหลอนหมาป่า</h1>
@@ -1708,6 +1819,7 @@ function renderHome(){
     <section class="home-hero">
       <div class="home-kicker"><span class="home-dot"></span> MODERATOR MODE</div>
       ${saveBlock}
+      ${slotBlock}
       <div class="home-copy">ทุกคืน ทุกโหวต ทุกบทบาท<br><span>จัดการเกมจากหน้าจอเดียว</span></div>
       <div class="home-actions">
         ${btn(hasAny?'เล่นเกมต่อ':'เริ่มเกมใหม่', hasAny?'continueGame()':'goSetup()', {p:1})}
@@ -1718,6 +1830,9 @@ function renderHome(){
           ${btn('ตั้งค่าเกม','goSetup()')}
           ${btn('วิธีใช้','showHelp()')}
         </div>`}
+      </div>
+      <div class="home-secondary" style="margin-top:10px">
+        ${btn('📖 ผลย้อนหลัง' + (histCount ? ' (' + histCount + ')' : ''), 'showGameHistory()')}
       </div>
     </section>
     <div class="home-features">
@@ -2685,6 +2800,7 @@ async function fallbackCopy(text){
 
 /* ========== BOOT ========== */
 (function boot(){
+  try{ initSlots(); }catch(e){ ACTIVE_SLOT = 1; }
   try{ load(false); }catch(e){ console.error(e); }
   applyTheme();
   render();

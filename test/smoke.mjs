@@ -501,6 +501,72 @@ async function main() {
     check('S9 ออฟไลน์ → เปิดหน้าใหม่ได้ (HTML+CSS ครบ)', !!(offlineOk && offlineOk.html && offlineOk.css && String(offlineOk.title).includes('คืนหอนหลอนหมาป่า')), JSON.stringify(offlineOk));
     await send('Network.emulateNetworkConditions', { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
 
+    /* ===== S10: multi-slot + ประวัติเกม ===== */
+    const slotInfo = await ev(`(() => {
+      const out = {};
+      const mk = (round, name, roleId) => JSON.stringify({screen:'night', g:{round, players:[{id:1, name, roleId, alive:true}]}, ui:{}, setup:{}, ver:VER});
+      switchSlot(1);
+      if(!localStorage.getItem(slotKeyFor(1))) localStorage.setItem(slotKeyFor(1), mk(2, 'ผู้เล่น 1', 'seer'));
+      const info1 = getSaveInfo();
+      out.slot2Before = slotState(2);
+      localStorage.setItem(slotKeyFor(2), mk(4, 'ช่องสอง', 'witch'));
+      out.info2 = getSaveInfo(slotKeyFor(2));
+      out.slot2State = slotState(2);
+      switchSlot(2);
+      out.activeIs2 = ACTIVE_SLOT === 2;
+      out.slot2View = getSaveInfo();
+      out.homeAfterSwitch = S.screen;
+      switchSlot(1);
+      out.info1After = getSaveInfo();
+      out.info1Same = JSON.stringify(info1) === JSON.stringify(out.info1After);
+      out.activeBack = ACTIVE_SLOT === 1;
+      out.info1 = info1;
+      return out;
+    })()`) || {};
+    check('S10 บันทึกแยกคนละช่อง (ช่อง 2 มีเกมของตัวเอง · สลับไปมาแล้วข้อมูลไม่ปน)',
+      slotInfo.slot2Before === 'empty' && slotInfo.slot2State === 'game' && slotInfo.activeIs2 === true &&
+      (slotInfo.slot2View && slotInfo.slot2View.round === 4) && slotInfo.info1Same === true &&
+      slotInfo.activeBack === true && !!(slotInfo.info1 && slotInfo.info1.round),
+      JSON.stringify(slotInfo));
+
+    const resumeInfo = await ev(`(async () => {
+      switchSlot(2);
+      const before = S.screen;
+      const label = getSaveInfo() ? getSaveInfo().screenLabel : null;
+      await continueGame();
+      const after = S.screen;
+      switchSlot(1);
+      return {before, label, after};
+    })()`) || {};
+    check('S10 สลับช่องแล้ว "เล่นต่อ" กลับเข้าเกมเดิมได้ (resume)',
+      resumeInfo.before === 'home' && resumeInfo.after === 'night', JSON.stringify(resumeInfo));
+
+    const histInfo = await ev('(()=>{const h=readHistory();return {len:h.length, first: h[0] ? {winner:h[0].winner, n:h[0].n, round:h[0].round, players:(h[0].players||[]).length} : null};})()');
+    check('S10 บันทึกผลเกมที่จบลงประวัติ',
+      histInfo.len >= 1 && histInfo.first && histInfo.first.players > 0 && ['village','werewolf','lovers','fool'].includes(histInfo.first.winner),
+      JSON.stringify(histInfo));
+
+    const histTest = await ev(`(() => {
+      const real = readHistory();
+      const dummies = [];
+      for(let i=0;i<15;i++) dummies.push({ts:Date.now()+i, n:8, round:3, winner:'village', reason:'ทดสอบ', players:[]});
+      writeHistory(dummies.concat(real));
+      const len = readHistory().length;
+      showGameHistory();
+      const sheet = document.getElementById('sheetOverlay');
+      const txt = sheet ? sheet.innerText : '';
+      closeSheet();
+      writeHistory(real);
+      return {len, sheetOk: !!sheet, showsDummy: txt.includes('ทดสอบ'), restored: readHistory().length === real.length};
+    })()`) || {};
+    check('S10 ประวัติเก็บสูงสุด 10 เกม + เปิดดูได้',
+      histTest.len === 10 && histTest.sheetOk === true && histTest.showsDummy === true && histTest.restored === true,
+      JSON.stringify(histTest));
+
+    await ev('goHome()');
+    const homeUi = await ev('document.getElementById("app").innerText');
+    check('S10 หน้าแรกแสดงตัวเลือกช่อง + ปุ่มผลย้อนหลัง', homeUi.includes('ช่อง 1') && homeUi.includes('ผลย้อนหลัง'), homeUi.slice(0, 200).replace(/\n/g, ' | '));
+
     /* ===== report ===== */
     const failed = results.filter((r) => !r.ok);
     console.log('\n========================================');
