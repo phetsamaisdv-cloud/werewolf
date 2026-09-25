@@ -1,4 +1,4 @@
-# โปรเจค: คืนหอนหลอนหมาป่า (Werewolf Moderator App)
+﻿# โปรเจค: คืนหอนหลอนหมาป่า (Werewolf Moderator App)
 
 > สถานะโปรเจค ณ วันที่ 25 ก.ย. 2026 · เวอร์ชัน `10.0` (`VER` ใน `app.js`)
 > เอกสารนี้สรุปว่า **ตอนนี้มีอะไรบ้าง / ทำอะไรไปแล้วบ้าง / ยังไม่ได้ทำอะไร / ควรทำอะไรต่อ**
@@ -25,8 +25,9 @@
 | `styles.css`                                           | ~28 KB  | ✅ ธีม dark/light, การ์ด, ปุ่ม, แอนิเมชัน, responsive                                                                                  |
 | `app.js`                                               | ~136 KB | ✅ ตรรกะเกมทั้งหมด (แยกมาจากเดิมเมื่อ 25 ก.ย. 2026) — เวอร์ชัน **10.0** (`SAVE_KEY` `werewolf_v9`, `SAVE_SCHEMA` 1)                    |
 | `manifest.json`                                        | 1 KB    | ✅ PWA manifest (ชื่อ, scope, ไอคอน 5 แบบ)                                                                                             |
-| `sw.js`                                                | ~7 KB   | ✅ Service Worker v1.7.0 — network-first + cache fallback + self-heal (กัน `ERR_FAILED`)                                               |
+| `sw.js`                                                | ~7 KB   | ✅ Service Worker v1.8.0 — network-first + cache fallback + self-heal (กัน `ERR_FAILED`)                                               |
 | `icon.svg` + `icons/*.png`                             | 6 ไฟล์  | ✅ ไอคอน 180/192/512 + maskable                                                                                                        |
+| `assets/logo.png` + `assets/hero.png`                  | 2 ไฟล์  | ✅ โลโก้ใหม่ + ภาพ banner หน้าแรก (placeholder ไฟล์ `.png` — เปลี่ยนภาพแทนที่ไฟล์เดิมได้เลย)                                           |
 | `TESTING.md`                                           | —       | ✅ Smoke test checklist (manual)                                                                                                       |
 | `test/smoke.mjs`                                       | —       | ✅ E2E test อัตโนมัติ 56 checks (`npm test`)                                                                                           |
 | `test/serve.mjs`                                       | —       | ✅ dev server (`npm run serve`)                                                                                                        |
@@ -150,7 +151,7 @@ BOOT        load → applyTheme → render → ลงทะเบียน servi
 
 ### 3.7 สิ่งที่เพิ่มในรอบ P1 (25 ก.ย. 2026)
 
-- **แยกไฟล์** — `index.html` (shell 1.7KB) + `styles.css` + `app.js` + `sw.js` v1.7.0
+- **แยกไฟล์** — `index.html` (shell 1.7KB) + `styles.css` + `app.js` + `sw.js` v1.8.0
 - **Dialog กลางจอ** แทน `confirm()`/`alert()`/`prompt()` หมดทุกจุด (`showDialog`/`askConfirm`/`askAlert`)
 - **Preset ชุดบทบาท** — มาตรฐาน/Party/Competitive (4-18 คน) + ชิปจำนวนผู้เล่น + บันทึกชุดเอง (`werewolf_presets`)
 - **3 ช่องบันทึกเกม** (`werewolf_v9`, `_s2`, `_s3`) สลับจากหน้าแรก + resume ต่อเนื่อง + **ประวัติ 10 เกมล่าสุด** (`werewolf_history`)

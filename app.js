@@ -31,33 +31,8 @@ const SLOT_COUNT = 3;
 const HISTORY_KEY = 'werewolf_history';
 const WINNER_LABEL = {village: '🏘️ ชาวบ้าน', werewolf: '🐺 หมาป่า', lovers: '💘 คู่รัก', fool: '🃏 คนโง่'};
 
-const LOGO_SVG = `<svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" class="wolf-logo">
-  <defs>
-    <linearGradient id="lg-bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#1e1b4b"/><stop offset="1" stop-color="#0f0c29"/>
-    </linearGradient>
-    <radialGradient id="lg-moon" cx=".35" cy=".35">
-      <stop offset="0" stop-color="#fef3c7"/><stop offset="1" stop-color="#f59e0b"/>
-    </radialGradient>
-    <linearGradient id="lg-fur" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#a5b4fc"/><stop offset="1" stop-color="#6366f1"/>
-    </linearGradient>
-    <filter id="lg-glow"><feGaussianBlur stdDeviation="2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-  </defs>
-  <rect x="2" y="2" width="116" height="116" rx="28" fill="url(#lg-bg)" stroke="#6366f1" stroke-width="2"/>
-  <circle cx="25" cy="22" r="1.2" fill="#fff" opacity=".6"/>
-  <circle cx="95" cy="18" r="1" fill="#fff" opacity=".5"/>
-  <circle cx="30" cy="42" r=".9" fill="#fff" opacity=".4"/>
-  <circle cx="90" cy="38" r="1.1" fill="#fff" opacity=".5"/>
-  <circle cx="20" cy="65" r=".8" fill="#fff" opacity=".35"/>
-  <circle cx="100" cy="70" r="1" fill="#fff" opacity=".4"/>
-  <circle cx="82" cy="32" r="13" fill="url(#lg-moon)" filter="url(#lg-glow)"/>
-  <path d="M36 54 L28 34 L44 44 Q60 38 76 44 L92 34 L84 54 Q86 74 70 84 L60 90 L50 84 Q34 74 36 54Z" fill="url(#lg-fur)"/>
-  <path d="M52 70 Q60 67 68 70 L66 82 L54 82Z" fill="#1e1b4b" opacity=".5"/>
-  <ellipse cx="48" cy="58" rx="3" ry="2.2" fill="#fbbf24" filter="url(#lg-glow)"/>
-  <ellipse cx="72" cy="58" rx="3" ry="2.2" fill="#fbbf24" filter="url(#lg-glow)"/>
-  <ellipse cx="60" cy="79" rx="2.8" ry="2" fill="#0f0c29"/>
-</svg>`;
+const LOGO_IMG = '<img class="wolf-logo" src="assets/logo.png" alt="โลโก้คืนหอนหลอนหมาป่า" width="512" height="512">';
+const HERO_IMG = '<img src="assets/hero.png" alt="" width="1200" height="630" decoding="async">';
 
 /* ========== STATE ========== */
 function newUI() {
@@ -2395,11 +2370,11 @@ function renderHome() {
     : '';
   const histCount = readHistory().length;
   return `<div class="scr home-screen">
-    <div class="home-logo">${LOGO_SVG}</div>
+    <div class="home-logo">${LOGO_IMG}</div>
     <h1>คืนหอนหลอนหมาป่า</h1>
     <p class="sub">ผู้ช่วยผู้ดำเนินเกม · 15 บทบาท · ใช้บนมือถือเครื่องเดียว</p>
     <section class="home-hero">
-      <div class="home-kicker"><span class="home-dot"></span> MODERATOR MODE</div>
+      <div class="home-banner">${HERO_IMG}<div class="home-kicker"><span class="home-dot"></span> MODERATOR MODE</div></div>
       ${saveBlock}
       ${slotBlock}
       <div class="home-copy">ทุกคืน ทุกโหวต ทุกบทบาท<br><span>จัดการเกมจากหน้าจอเดียว</span></div>
@@ -3448,7 +3423,7 @@ function renderEnd() {
   const cls = S.g.winner === 'village' ? 'ok' : S.g.winner === 'werewolf' ? 'dg' : 'wr';
   const reason = S.g.winReason ? `<div class="f13 mt">${esc(S.g.winReason)}</div>` : '';
   return `<div class="scr">
-    <div class="home-logo" style="margin:10px auto;width:80px;height:80px">${LOGO_SVG}</div>
+    <div class="home-logo" style="margin:10px auto;width:80px;height:80px">${LOGO_IMG}</div>
     <h1>🏆 จบเกม!</h1>
     ${notice(
       `<div style="font-size:20px">ฝ่ายชนะ</div>
