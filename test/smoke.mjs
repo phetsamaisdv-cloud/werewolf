@@ -479,6 +479,28 @@ async function main() {
     await ev('stopT()');
     check('S8 หยุดเวลาได้', await ev('S.ui.tRunning === false'));
 
+    /* ===== S11: เสียงแจ้งเตือน ===== */
+    const soundInfo = await ev(`(() => {
+      const out = {isFn: typeof beep === 'function', defaultOn: S.setup.sound === true};
+      goSetup();
+      const ui = document.getElementById('app').innerText;
+      out.uiHasToggle = ui.includes('เสียงแจ้งเตือน');
+      out.errs = [];
+      for(const k of ['timeup','night','vote','win','nope']){
+        try{ beep(k); }catch(e){ out.errs.push(k + ':' + e.message); }
+      }
+      toggleSetup('sound');
+      out.off = S.setup.sound === false;
+      try{ beep('night'); }catch(e){ out.errs.push('muted:' + e.message); }
+      toggleSetup('sound');
+      out.backOn = S.setup.sound === true;
+      return out;
+    })()`) || {};
+    check('S11 เสียงแจ้งเตือน: toggle ในหน้าตั้งค่า + beep() ทุกแบบไม่ throw',
+      soundInfo.isFn === true && soundInfo.defaultOn === true && soundInfo.uiHasToggle === true && (soundInfo.errs || []).length === 0,
+      JSON.stringify(soundInfo));
+    check('S11 ปิด/เปิดเสียงได้', soundInfo.off === true && soundInfo.backOn === true, JSON.stringify(soundInfo));
+
     check('S8 ไม่มี JS exception', pageErrors.length === 0, pageErrors.slice(0, 3).join(' | '));
     check('S8 ไม่มี HTTP error (404/500)', httpErrors.length === 0, httpErrors.slice(0, 3).join(' | '));
 

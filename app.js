@@ -78,7 +78,7 @@ const S = {
   setup:{
     n:8, names:['A','B','C','D','E','F','G','H'],
     roles:{werewolf:2,wolfcub:0,seer:1,witch:1,hunter:1,doctor:0,bodyguard:0,cupid:1,mayor:1,cursed:0,fool:0,infected:0,prince:0,grandma:0},
-    theme:'auto', fontSize:'normal', keepAwake:true, haptic:true,
+    theme:'auto', fontSize:'normal', keepAwake:true, haptic:true, sound:true,
     assignMode:'random'
   },
   g:null, ui:newUI()
@@ -229,6 +229,7 @@ function load(useResume){
       for(const r of SPECIAL) if(s.roles[r] === undefined) s.roles[r] = 0;
     }
     if(!S.setup.assignMode) S.setup.assignMode = 'random';
+    if(S.setup.sound === undefined) S.setup.sound = true;
     S.ui = Object.assign(newUI(), d.ui || {});
     S.ui.tRunning = false;
     if(!S.ui.deathCauses) S.ui.deathCauses = {};
@@ -373,7 +374,7 @@ function tickT(){
     stopT();
     const sBtn = $('tSheetToggleBtn');
     if(sBtn) sBtn.textContent = '▶ เริ่มจับเวลา';
-    beep(); vibrate([300,100,300]); render();
+    beep('timeup'); vibrate([300,100,300]); render();
   }
 }
 function updatePill(){
@@ -386,16 +387,40 @@ function stopT(){
 }
 function toggleT(){ S.ui.tRunning ? stopT() : startT(); render(); }
 function resetT(sec){ stopT(); S.ui.timer = sec; render(); }
-function beep(){
+let beepCtx = null;
+function beep(kind){
+  if(S.setup.sound === false) return;
   try{
     const AC = window.AudioContext || window.webkitAudioContext;
     if(!AC) return;
-    const ctx = new AC();
-    const o = ctx.createOscillator(), g = ctx.createGain();
-    o.connect(g); g.connect(ctx.destination);
-    o.frequency.value = 880; g.gain.value = 0.15;
-    o.start();
-    setTimeout(()=>{ o.stop(); try{ctx.close();}catch(e){} }, 400);
+    if(!beepCtx) beepCtx = new AC();
+    const ctx = beepCtx;
+    if(ctx.state === 'suspended' && ctx.resume){
+      const r = ctx.resume();
+      if(r && r.catch) r.catch(()=>{});
+    }
+    const PATTERNS = {
+      timeup: [[880,0,0.16],[880,0.20,0.16],[880,0.40,0.32]],
+      night:  [[523.25,0,0.15],[659.25,0.15,0.15],[783.99,0.30,0.26]],
+      vote:   [[440,0,0.14],[587.33,0.16,0.30]],
+      win:    [[523.25,0,0.14],[659.25,0.14,0.14],[783.99,0.28,0.14],[1046.5,0.42,0.34]]
+    };
+    const notes = PATTERNS[kind] || PATTERNS.timeup;
+    const t0 = ctx.currentTime + 0.02;
+    for(let i=0;i<notes.length;i++){
+      const freq = notes[i][0], delay = notes[i][1], dur = notes[i][2];
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = 'triangle';
+      o.frequency.value = freq;
+      o.connect(g); g.connect(ctx.destination);
+      const s = t0 + delay;
+      g.gain.setValueAtTime(0.0001, s);
+      g.gain.exponentialRampToValueAtTime(0.14, s + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, s + dur);
+      o.start(s);
+      o.stop(s + dur + 0.05);
+      o.onended = () => { try{ o.disconnect(); g.disconnect(); }catch(e){} };
+    }
   }catch(e){}
 }
 function showTimerSheet(){
@@ -1131,6 +1156,7 @@ async function endNight(){
   S.ui.pendHunter = dh !== null ? {hunterId:dh, context:'dawn'} : null;
 
   S.screen = 'dawn';
+  beep('night');
   vibrate([100,50,100]);
   render();
 }
@@ -1344,6 +1370,7 @@ function executePlayer(id){
   }
   S.ui.pendHunter = hunterId !== null ? {hunterId, context:'execution'} : null;
   S.screen = 'execution';
+  beep('vote');
   vibrate([100,50,100]);
   render();
 }
@@ -1464,6 +1491,7 @@ function endGame(win){
   addLog('info', '🏆 เกมจบ — '+win.reason);
   S.screen = 'end';
   recordGameEnd(win);
+  beep('win');
   vibrate([200,100,200,100,300]);
   render();
 }
@@ -1977,6 +2005,10 @@ function renderSetup(){
       <div class="set">
         <div>📳 สั่นเมื่อแจ้งเตือน</div>
         <div class="tg${S.setup.haptic?' on':''}" onclick="toggleSetup('haptic')"></div>
+      </div>
+      <div class="set">
+        <div>🔔 เสียงแจ้งเตือน (จบกลางคืน / ผลโหวต / หมดเวลา)</div>
+        <div class="tg${S.setup.sound?' on':''}" onclick="toggleSetup('sound')"></div>
       </div>
     </div>
     ${warnHtml}
