@@ -20,3 +20,7 @@ bun.lock
 bun.lockb
 package-lock.json
 yarn.lock
+.agents
+.opencode
+opencode.jsonc
+skills-lock.json
