@@ -589,6 +589,32 @@ async function main() {
     const homeUi = await ev('document.getElementById("app").innerText');
     check('S10 หน้าแรกแสดงตัวเลือกช่อง + ปุ่มผลย้อนหลัง', homeUi.includes('ช่อง 1') && homeUi.includes('ผลย้อนหลัง'), homeUi.slice(0, 200).replace(/\n/g, ' | '));
 
+    /* ===== S12: error boundary ===== */
+    const errInfo = await ev(`(() => {
+      let logged = 0;
+      const origCE = console.error;
+      console.error = function(){ logged++; try{ return origCE.apply(console, arguments); }catch(e){} };
+      const orig = window.renderNight;
+      window.renderNight = function(){ throw new Error('BOOM_TEST'); };
+      S.screen = 'night';
+      render();
+      const app = document.getElementById('app');
+      const txt = app ? app.innerText : '';
+      const shown = txt.includes('เกิดข้อผิดพลาด');
+      const detail = txt.includes('BOOM_TEST');
+      const notBlank = !!app && app.innerHTML.length > 100;
+      window.renderNight = orig;
+      console.error = origCE;
+      recoverHome();
+      const after = document.getElementById('app').innerText;
+      return {shown, detail, notBlank, logged, recovered: after.includes('คืนหอนหลอนหมาป่า'), screen: S.screen, errorCleared: !lastRenderError};
+    })()`) || {};
+    check('S12 error boundary: render พัง → หน้าข้อผิดพลาดแทนหน้าขาว',
+      errInfo.shown === true && errInfo.detail === true && errInfo.notBlank === true, JSON.stringify(errInfo));
+    check('S12 กู้คืนกลับหน้าแรกได้ + log error ออก console',
+      errInfo.recovered === true && errInfo.screen === 'home' && errInfo.errorCleared === true && errInfo.logged >= 1,
+      JSON.stringify(errInfo));
+
     /* ===== report ===== */
     const failed = results.filter((r) => !r.ok);
     console.log('\n========================================');

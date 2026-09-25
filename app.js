@@ -1814,17 +1814,57 @@ function uxBottom(){
 }
 
 /* ========== RENDER ========== */
+let renderGuard = false;
+let lastRenderError = null;
 function render(){
-  applyTheme();
-  const trig = $('modTrig');
-  if(trig){ const hide=!S.g || ['home','setup','reveal','end','assign'].includes(S.screen); trig.style.display=hide?'none':'block'; }
-  const app=$('app'); if(!app) return;
-  const screens={home:renderHome,setup:renderSetup,assign:renderAssign,reveal:renderReveal,night:renderNight,dawn:renderDawn,hunter:renderHunter,day:renderDay,voting:renderVoting,tie:renderTie,execution:renderExecution,prince:renderPrince,end:renderEnd};
-  const fn=screens[S.screen]||renderHome;
-  const body=fn();
-  if(S.screen==='home') app.innerHTML=body;
-  else app.innerHTML=uxTopbar()+body+uxBottom();
-  save();
+  if(renderGuard) return;
+  renderGuard = true;
+  try{
+    applyTheme();
+    const trig = $('modTrig');
+    if(trig){ const hide=!S.g || ['home','setup','reveal','end','assign'].includes(S.screen); trig.style.display=hide?'none':'block'; }
+    const app=$('app'); if(!app) return;
+    const screens={home:renderHome,setup:renderSetup,assign:renderAssign,reveal:renderReveal,night:renderNight,dawn:renderDawn,hunter:renderHunter,day:renderDay,voting:renderVoting,tie:renderTie,execution:renderExecution,prince:renderPrince,end:renderEnd};
+    const fn=screens[S.screen]||renderHome;
+    const body=fn();
+    if(S.screen==='home') app.innerHTML=body;
+    else app.innerHTML=uxTopbar()+body+uxBottom();
+    save();
+    lastRenderError = null;
+  }catch(err){
+    lastRenderError = err;
+    try{ console.error('render error:', err); }catch(e){}
+    showErrorScreen(err);
+  }finally{
+    renderGuard = false;
+  }
+}
+function showErrorScreen(err){
+  try{
+    const app = $('app');
+    if(!app) return;
+    const msg = String((err && (err.message || err)) || 'ไม่ทราบสาเหตุ');
+    app.innerHTML = `<div class="scr" style="text-align:center;padding-top:36px">
+      <div style="font-size:46px">⚠️</div>
+      <h2 style="margin-top:8px">เกิดข้อผิดพลาด</h2>
+      <p class="dim f13" style="margin:10px auto 0;max-width:420px;line-height:1.7">
+        หน้านี้แสดงข้อมูลไม่สำเร็จ — ข้อมูลเกมในเครื่องยังถูกบันทึกไว้ตามปกติ<br>
+        กด "ลองใหม่" หรือ "กลับหน้าแรก" เพื่อเล่นต่อ
+      </p>
+      <pre style="display:inline-block;max-width:92%;text-align:left;white-space:pre-wrap;word-break:break-word;margin-top:14px;padding:10px 12px;background:var(--surface2);border:1px solid var(--line);border-radius:10px;font-size:12px;color:var(--muted)">${esc(msg)}</pre>
+      <div class="row" style="margin-top:18px;justify-content:center">
+        ${btn('🔄 ลองใหม่', 'retryRender()', {p:1})}
+        ${btn('🏠 กลับหน้าแรก', 'recoverHome()')}
+      </div>
+    </div>`;
+  }catch(e){}
+}
+function retryRender(){ render(); }
+function recoverHome(){
+  try{ S.screen = 'home'; }catch(e){}
+  lastRenderError = null;
+  render();
+  if(lastRenderError){ try{ location.reload(); }catch(e){} }
 }
 
 /* ========== SCREENS ========== */
