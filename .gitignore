@@ -10,3 +10,8 @@ Desktop.ini
 
 # logs
 *.log
+
+# dependencies / build
+node_modules/
+.wrangler/
+dist/

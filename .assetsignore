@@ -1,0 +1,22 @@
+# ไฟล์ที่ไม่ต้องอัปขึ้น Cloudflare (เหมือน .gitignore แต่สำหรับ assets)
+# สำคัญมาก: node_modules มี workerd ~127MB → เกินโควตา 25MB ของ Workers
+node_modules
+.git
+.github
+.vscode
+.idea
+.wrangler
+archive
+test
+*.log
+Thumbs.db
+Desktop.ini
+.DS_Store
+.gitignore
+.assetsignore
+wrangler.jsonc
+package.json
+bun.lock
+bun.lockb
+package-lock.json
+yarn.lock

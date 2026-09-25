@@ -6,7 +6,9 @@
   "type": "module",
   "scripts": {
     "test": "node test/smoke.mjs",
-    "serve": "node test/serve.mjs"
+    "serve": "node test/serve.mjs",
+    "deploy": "npx wrangler deploy",
+    "preview": "npx wrangler dev"
   },
   "license": "UNLICENSED"
 }

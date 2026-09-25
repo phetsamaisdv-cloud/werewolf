@@ -32,11 +32,18 @@
 | `test/serve.mjs` | — | ✅ dev server (`npm run serve`) |
 | `package.json` | — | ✅ scripts: `test`, `serve` (ไม่มี dependency) |
 | `PROJECT.md` | — | 📄 เอกสารสถานะโปรเจค (ไฟล์นี้) |
-| `.gitignore` | — | ✅ |
+| `.gitignore` | — | ✅ (`node_modules/`, `.wrangler/`, `dist/` ถูก ignore) |
+| `wrangler.jsonc` | — | ✅ config deploy ขึ้น Cloudflare Workers (assets = repo root) |
+| `.assetsignore` | — | ✅ กัน `node_modules` (workerd 127MB) ไม่ให้อัป — **บังคับมีไม่งั้น deploy พัง** |
 | `archive/InDexBlackUp.v9.6.html` | 136 KB | 🗄️ backup เวอร์ชันเก่า **9.6** (ย้ายออกจาก root แล้ว) |
 
 **สถานะ Git:** มี repository แล้ว (`main`) — commit baseline เป็น commit แรก, การเปลี่ยนแปลงทุกอย่างต้องผ่าน commit
 **ยังไม่มี:** build tool, ESLint/Prettier, unit test (เฉพาะ E2E) · `README.md` มีแค่บรรทัดเดียว
+
+**Deploy:** Cloudflare Workers (static assets) — `npx wrangler deploy` (มี script `npm run deploy` / `npm run preview`)
+- config อยู่ใน `wrangler.jsonc` (`assets.directory: "."`) + `.assetsignore` ตัดไฟล์ development ออก
+- ⚠️ ห้ามลบ `.assetsignore` — `node_modules/workerd` (~127MB) เกินโควตา 25MB ของ Workers แล้ว build จะพัง (ทดสอบแล้ว)
+- เส้นทาง: push → Cloudflare build (`bun install` ไม่มี dependency) → `npx wrangler deploy`
 
 โครงสร้างภายใน `app.js` (แบ่งด้วย comment `/* ===== ... ===== */`):
 
