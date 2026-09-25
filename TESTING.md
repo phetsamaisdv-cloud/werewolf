@@ -7,10 +7,24 @@
 
 ## 0. วิธีเตรียม environment
 
+### 0.1 ทดสอบอัตโนมัติ (รันก่อนเสมอ)
+
+```bash
+npm test          # หรือ: node test/smoke.mjs
+```
+
+- ไม่ต้องติดตั้ง dependency — ใช้ Node http server + Chrome DevTools Protocol ตรง ๆ (ต้องมี Chrome/Edge)
+- ครอบคลุม **35 checks**: boot/theme/setup/manual assign/reveal/เล่นจบเกมครบทุกเฟส/boss ทุกบทบาท,
+  บันทึก-เล่นต่อ (reload กลางเกม), undo แขวนคอ, moderator panel, history, XSS, จับเวลา,
+  ไม่มี JS exception / 404
+- ผ่านทั้งหมด = พร้อม deploy · ถ้า fail ดูบรรทัด `ไม่ผ่าน:` ท้ายผลลัพธ์
+
+### 0.2 ทดสอบ Manual (ตาม checklist ด้านล่าง)
+
 | วิธี | คำสั่ง | ใช้ทดสอบอะไร |
 |---|---|---|
 | เปิดตรง ๆ | ดับเบิลคลิก `index.html` | ตัวเกม (ไม่มี service worker — ทดสอบไม่ได้) |
-| Local server | `python -m http.server 8123` แล้วเปิด `http://127.0.0.1:8123/` | ตัวเกม + PWA/Offline |
+| Local server | `npm run serve` แล้วเปิด `http://127.0.0.1:8123/` | ตัวเกม + PWA/Offline |
 | เครื่องจริง | host ขึ้น HTTPS (GitHub Pages / Netlify) แล้วเปิดบนมือถือ | PWA, Wake Lock, Haptic, Add to Home Screen |
 
 > ⚠️ Service worker ทำงานเฉพาะ `https:` หรือ `localhost` เท่านั้น

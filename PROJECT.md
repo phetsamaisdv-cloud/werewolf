@@ -25,7 +25,10 @@
 | `manifest.json` | 1 KB | ✅ PWA manifest (ชื่อ, scope, ไอคอน 5 แบบ) |
 | `sw.js` | ~2 KB | ✅ Service Worker v1.0.0 — cache shell + ทำงานออฟไลน์ได้ |
 | `icon.svg` + `icons/*.png` | 6 ไฟล์ | ✅ ไอคอน 180/192/512 + maskable |
-| `TESTING.md` | — | ✅ Smoke test checklist |
+| `TESTING.md` | — | ✅ Smoke test checklist (manual) |
+| `test/smoke.mjs` | — | ✅ E2E test อัตโนมัติ 35 checks (`npm test`) |
+| `test/serve.mjs` | — | ✅ dev server (`npm run serve`) |
+| `package.json` | — | ✅ scripts: `test`, `serve` (ไม่มี dependency) |
 | `PROJECT.md` | — | 📄 เอกสารสถานะโปรเจค (ไฟล์นี้) |
 | `.gitignore` | — | ✅ |
 | `archive/InDexBlackUp.v9.6.html` | 136 KB | 🗄️ backup เวอร์ชันเก่า **9.6** (ย้ายออกจาก root แล้ว) |
@@ -131,7 +134,8 @@
 ### 4.1 โครงสร้างและวิศวกรรม (Engineering)
 - ✅ **Version Control** — มี git repo แล้ว (branch `main`, commit baseline แล้ว) — *ทำเสร็จในรอบ P0*
 - ❌ **ไม่มี build / lint / format** — ไม่มี ESLint, Prettier, ไม่มี `package.json`
-- ❌ **ไม่มี test อัตโนมัติ** — ตรรกะกลางคืน/โหวต/ชนะ ซับซ้อนมาก (มีแค่ smoke test checklist แบบ manual)
+- ✅ **Test อัตโนมัติ (E2E)** — `test/smoke.mjs` (Node + Chrome DevTools Protocol, 35 checks, ไม่มี dependency) รันด้วย `npm test` — *ทำเสร็จในรอบ P1*
+- ⬜ **Test manual ครบทุกข้อ** — ยังต้องเดิน `TESTING.md` ด้วยมือบนมือถือจริงก่อนปล่อย
 - ❌ **Monolith** — CSS + HTML + JS อยู่ในไฟล์เดียว, ~137 KB, แยกชั้นไม่ได้ แก้ส่วนหนึ่งอาจพังส่วนอื่น
 - ❌ **ใช้ global functions + `onclick` inline ทั้งหมด** — ยากต่อการ refactor/ติดบั๊ก, ไม่มี module
 - ❌ **ไม่มี error boundary** — ถ้า `render()` throw กลางเกม หน้าขาว/ค้างได้

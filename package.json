@@ -1,0 +1,12 @@
+{
+  "name": "werewolf-moderator",
+  "version": "10.0.0",
+  "private": true,
+  "description": "คืนหอนหลอนหมาป่า — ผู้ช่วยผู้ดำเนินเกม Werewolf (single-file PWA, vanilla JS)",
+  "type": "module",
+  "scripts": {
+    "test": "node test/smoke.mjs",
+    "serve": "node test/serve.mjs"
+  },
+  "license": "UNLICENSED"
+}
