@@ -97,7 +97,7 @@ BOOT        load → applyTheme → render → ลงทะเบียน servi
 - เปอร์เซ็นต์ความคืบหน้าของคืนนั้น
 - โหมาป่า 2 เป้าหมาย (เมื่อเงื่อนไขเข้า) + เลือกเป้าหมายเสริมตอนลูกหมาป่าตาย
 - **Undo ได้ทุก action กลางคืน** (`undoWolf/Seer/Doctor/Bodyguard/Cupid` รวมถึงยาพิษ/ยายแก่)
-- สรุปผลกลางคืนแบบ `confirm()` พร้อมเหตุผลการตายทุกกรณี (กัด / ยาพิษ / ยิง / โหวต / ตายตามคู่รัก)
+- สรุปผลกลางคืนแบบ dialog ของแอป พร้อมเหตุผลการตายทุกกรณี (กัด / ยาพิษ / ยิง / โหวต / ตายตามคู่รัก)
 - บันทึกผลตรวจ Seer ลง `seerChecks` + log ทุกเหตุการณ์ (`addLog`)
 
 ### 3.4 ระบบกลางวันและการโหวต
@@ -123,7 +123,7 @@ BOOT        load → applyTheme → render → ลงทะเบียน servi
 - **History** — ดูเหตุการณ์ย้อนหลังจัดกลุ่มตามวัน รวมผลตรวจ Seer
 - **Manual assign** — แจกบทบาทเองพร้อม validator ว่าบทบาทครบพอดี
 - **Balance warnings** — เตือนสมดุลเกม (ไม่มีหมาป่า / หมาป่าเยอะไป / บทบาทที่ไม่มีผล)
-- **Sheet modal** กลางจอแทน dialog บางส่วน, XSS-safe (`esc` ทุกจุดที่แทรกชื่อผู้เล่น)
+- **Sheet modal** กลางจอแทน dialog บางส่วน + **Dialog กลางจอ** แทน `confirm()`/`alert()` ทั้งหมด (`showDialog`/`askConfirm`/`askAlert`), XSS-safe (`esc` ทุกจุดที่แทรกชื่อผู้เล่น)
 - Favicon + apple-touch-icon เป็น SVG inline, meta สำหรับ iOS PWA-capable, `viewport-fit=cover` + safe-area
 
 ---
@@ -133,7 +133,7 @@ BOOT        load → applyTheme → render → ลงทะเบียน servi
 ### 4.1 โครงสร้างและวิศวกรรม (Engineering)
 - ✅ **Version Control** — มี git repo แล้ว (branch `main`, commit baseline แล้ว) — *ทำเสร็จในรอบ P0*
 - ❌ **ไม่มี build / lint / format** — ไม่มี ESLint, Prettier, ไม่มี `package.json`
-- ✅ **Test อัตโนมัติ (E2E)** — `test/smoke.mjs` (Node + Chrome DevTools Protocol, 35 checks, ไม่มี dependency) รันด้วย `npm test` — *ทำเสร็จในรอบ P1*
+- ✅ **Test อัตโนมัติ (E2E)** — `test/smoke.mjs` (Node + Chrome DevTools Protocol, 39 checks, ไม่มี dependency) รันด้วย `npm test` — *ทำเสร็จในรอบ P1*
 - ⬜ **Test manual ครบทุกข้อ** — ยังต้องเดิน `TESTING.md` ด้วยมือบนมือถือจริงก่อนปล่อย
 - ❌ **Monolith** — CSS + HTML + JS อยู่ในไฟล์เดียว, ~137 KB, แยกชั้นไม่ได้ แก้ส่วนหนึ่งอาจพังส่วนอื่น
 - ❌ **ใช้ global functions + `onclick` inline ทั้งหมด** — ยากต่อการ refactor/ติดบั๊ก, ไม่มี module
@@ -155,7 +155,7 @@ BOOT        load → applyTheme → render → ลงทะเบียน servi
 - ❌ **Accessibility จำกัด** — `user-select:none` ทั้งหน้า, ไม่มี ARIA, contrast บางธีม, ไม่มีโหมดมือซ้าย/ปุ่มใหญ่พิเศษ
 
 ### 4.3 จุดที่ควรระวัง / อาจเป็นบั๊ก (ต้องตรวจสอบ)
-- ⚠️ ใช้ `confirm()` / `alert()` ดั้งเดิม 14 จุด (`index.html:709-1726, 2904`) — ขัดกับธีม UI และ blocking กลางเกม
+- ✅ ~~ใช้ `confirm()` / `alert()` ดั้งเดิม~~ — แทนที่หมดแล้ว 12 จุดใน `app.js` ด้วย dialog ของแอปเอง (P1 #6)
 - ⚠️ `checkWin` ไม่ครอบคลุมเคส "หมาป่าตายหมดเพราะลูกหมาป่าตายพร้อมกัน" / เสมอฝ่ายกลาง — ควรทดสอบรอบ edge case
 - ⚠️ `localStorage` อาจเต็ม/ถูกบล็อกใน Safari private mode — `save()` มี try/catch แต่ user ไม่ทราบว่าบันทึกไม่สำเร็จ
 - ⚠️ Wake Lock ต้องขอใหม่ทุกครั้งที่ tab สลับ (`visibilitychange`) — ตรวจแล้วมี แต่ถ้า browser ไม่รองรับจะนิ่งเงียบ
@@ -172,7 +172,7 @@ BOOT        load → applyTheme → render → ลงทะเบียน servi
 2. **ย้าย `InDexBlackUp.html`** — ✅ ย้ายไป `archive/InDexBlackUp.v9.6.html` (ประวัติเก่าอยู่ใน git แล้ว)
 3. **เพิ่ม PWA** — ✅
    - `manifest.json` (ชื่อไทย, `display: standalone`, scope `./`, ไอคอน 5 แบบ)
-   - `sw.js` v1.0.0 — precache shell, cache-first + revalidate ตอนหลัง, cleanup cache เก่า, fallback ข้อความออฟไลน์
+   - `sw.js` (v1.0.0 → v1.2.0) — precache shell, cache-first + revalidate ตอนหลัง, cleanup cache เก่า, fallback ข้อความออฟไลน์
    - ไอคอน `icon.svg` + `icons/icon-180|192|512.png` + `icons/icon-maskable-192|512.png`
    - `index.html`: เพิ่ม `<link rel="manifest">`, `apple-touch-icon` เป็น PNG จริง, meta description, และลงทะเบียน SW (เฉพาะ http/localhost)
    - **ผลทดสอบอัตโนมัติผ่านแล้ว**: SW registered + controlling, cache ครบ 10 รายการ, จำลอง Offline แล้วรีเฟรช → แอปโหลดได้
@@ -180,7 +180,7 @@ BOOT        load → applyTheme → render → ลงทะเบียน servi
 
 ### 🟡 P1 — ทำต่อ (คุณภาพชีวิต + ลดบั๊ก)
 5. ✅ **แยกไฟล์** → `index.html` (shell 1.7KB) + `styles.css` + `app.js` — *ทำเสร็จแล้ว* (มี E2E test ยืนยัน 39/39 + ทดสอบออฟไลน์ผ่าน)
-6. **แทนที่ `confirm()`/`alert()` ทั้งหมด** ด้วย sheet modal ของตัวเอง (`openSheet` มีอยู่แล้ว) — ได้ UI ที่เข้าธีม + ปุ่มยืนยันที่ชัดเจน (ต้องปรับ test ให้กดปุ่มแทน auto-accept dialog)
+6. ✅ **แทนที่ `confirm()`/`alert()` ทั้งหมด** — *ทำเสร็จแล้ว*: เพิ่ม `showDialog()/askConfirm()/askAlert()` (overlay `#dialogOverlay`, รองรับ Enter/Esc, backdrop click, `danger`/`single` mode) แทน native 12 จุด (`clearSave`, `continueGame`, `confirmLeaveGame`, `resetAssign`, `endNight`, `confirmSkipVote`, `resetVotes`, `finishVoting`, `modStart`, `copyResults`, `fallbackCopy`) — **E2E 39/39 ผ่าน** (`sw.js` bump เป็น v1.2.0)
 7. **เพิ่ม Preset ชุดบทบาท** — ปุ่ม "โหลด preset" เช่น `4-6-8-10-12 คน มาตรฐาน` / `Party` / `Competitive` + บันทึกลง `localStorage`
 8. **หลาย slot บันทึกเกม** + ปุ่ม "ดูเกมที่เล่นไปแล้ว" (เก็บผลย้อนหลัง 10 เกมล่าสุด)
 9. **เพิ่มเสียงแจ้งเตือน** (Web Audio สร้างจาก oscillator แบบ `beep()` หรือไฟล์ `.mp3` เล็ก ๆ) สำหรับ: หมดเวลา, จบกลางคืน, ประกาศผลโหวต
@@ -206,9 +206,10 @@ BOOT        load → applyTheme → render → ลงทะเบียน servi
 | Undo / History / Save-Resume | ✅ มี |
 | ธีม, จับเวลา, Wake Lock, Haptic | ✅ มี |
 | **P0: Git / archive / PWA / checklist** | ✅ **เสร็จแล้ว** |
-| Smoke test จริงครบทุกข้อใน `TESTING.md` | ⬜ ยังไม่ได้ทำ |
-| README / Tests / Lint | ❌ ยังไม่มี |
-| แยกไฟล์ / modular | ❌ ยังเป็น monolith |
+| Smoke test จริงครบทุกข้อใน `TESTING.md` | ⬜ ยังไม่ได้ทำ (แต่มี E2E 39/39 แทน) |
+| README / Tests / Lint | 🟡 มี README + E2E test แล้ว (ยังไม่มี lint) |
+| แยกไฟล์ / modular | ✅ `index.html` + `styles.css` + `app.js` |
+| แทน `confirm()`/`alert()` ด้วย dialog ของแอป | ✅ ทำเสร็จแล้ว |
 | เสียงแจ้งเตือน / preset / multi-slot | ❌ ยังไม่มี |
 
-**ทำเสร็จแล้ว:** P0 ทั้ง 4 ข้อ → **ต่อไป:** เดิน smoke test ครบทุกข้อใน `TESTING.md` แล้วค่อยเริ่ม **P1** (แยกไฟล์ → แทน `confirm()` → preset → multi-slot → เสียง → error boundary)
+**ทำเสร็จแล้ว:** P0 ทั้ง 4 ข้อ + P1 #5 แยกไฟล์ + P1 #6 แทน `confirm()/alert()` → **ต่อไป:** P1 #7 preset ชุดบทบาท → #8 multi-slot → #9 เสียง → #10 error boundary (แล้วค่อยเดิน `TESTING.md` ด้วยมือก่อนปล่อย)

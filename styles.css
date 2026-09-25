@@ -424,3 +424,23 @@ select.role-sel{
   .g3{grid-template-columns:1fr 1fr}
 }
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+
+/* ===== Dialog (แทน confirm/alert ของเบราว์เซอร์) ===== */
+.overlay.dlg-ov{align-items:center;padding:20px}
+.sheet.dlg{
+  border-radius:22px;border-bottom:1px solid var(--line);
+  max-width:430px;width:100%;max-height:80dvh;animation:dlgIn .18s ease-out;
+}
+@keyframes dlgIn{from{opacity:0;transform:translateY(14px) scale(.97)}to{opacity:1;transform:none}}
+.sheet.dlg .sheet-head{border-bottom:0;padding:20px 22px 0}
+.sheet.dlg .sheet-head h3{font-size:16px}
+.dlg-msg{
+  padding:12px 22px 4px;font-size:14.5px;line-height:1.65;
+  color:var(--text);white-space:pre-line;word-break:break-word;
+}
+.dlg-actions{
+  display:flex;gap:10px;padding:16px 18px calc(18px + env(safe-area-inset-bottom));
+  border-top:1px solid var(--line);margin-top:14px;
+}
+.dlg-actions .btn{min-height:48px;font-size:14.5px;margin:0}
+.dlg-actions .btn{flex:1 1 auto;min-width:0}

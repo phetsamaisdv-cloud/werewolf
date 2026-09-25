@@ -87,7 +87,21 @@ function startServer(port) {
 
 /* ---------- page driver (注入 ลงในหน้า) ---------- */
 const DRIVER = `
+if(!window.__dlgWrapped){
+  window.__dlgWrapped = true;
+  window.__dlgCount = 0;
+  const _sd = window.showDialog;
+  window.showDialog = function(o){ window.__dlgCount++; return _sd(o); };
+}
 window.__T = (function(){
+  function clickDlg(){
+    const ov = document.getElementById('dialogOverlay');
+    if(!ov) return false;
+    const b = ov.querySelector('[data-dlg="1"]');
+    if(b){ b.click(); return true; }
+    return false;
+  }
+  function settle(p){ clickDlg(); return p; }
   function autoNight(){
     const roles = activeNRoles();
     for(const r of roles){
@@ -151,16 +165,16 @@ window.__T = (function(){
       selectVoter(v); selectTarget(target); confirmVote();
     }
   }
-  function playRound(){
+  async function playRound(){
     if(S.screen !== 'night') return S.screen;
     autoNight();
-    endNight();
+    await settle(endNight());
     resolve();
     if(S.screen !== 'day') return S.screen;
     startVoting();
     for(let a=0; a<3; a++){
       collectVotes();
-      finishVoting();
+      await settle(finishVoting());
       if(S.screen === 'tie'){
         if(!__T.tieUsed){ __T.tieUsed = true; tieRevote(); continue; }
         tieNoDeath(); break;
@@ -170,7 +184,7 @@ window.__T = (function(){
     resolve();
     return S.screen;
   }
-  return { autoNight, resolve, collectVotes, playRound, tieUsed:false, redoAfterUndo:false };
+  return { autoNight, resolve, collectVotes, playRound, clickDlg, settle, tieUsed:false };
 })();`;
 
 /* ---------- main ---------- */
@@ -376,15 +390,19 @@ async function main() {
     const endText = await ev('document.getElementById("app").innerText');
     check('S6 หน้าจบเกมแสดงผู้ชนะ + บทบาท', endText.includes('จบเกม') && endText.includes('บทบาททั้งหมด'));
 
-    check('S6 มี confirm สรุปกลางคืนถูกเรียก', dialogs.some((d) => d.includes('กลางคืน')), `${dialogs.length} dialogs`);
+    const appDialogs = await ev('window.__dlgCount || 0');
+    check('S6 ใช้ dialog ของแอปแทน native confirm สรุปกลางคืน', appDialogs > 0 && dialogs.length === 0, `appDialogs=${appDialogs} native=${dialogs.length}`);
 
     /* history + copy results ตอนจบเกม */
     await ev('showHistory()');
     const histText = await ev('document.getElementById("sheetOverlay") ? document.getElementById("sheetOverlay").innerText : ""');
     check('S6 History เปิดได้และมี Round', /round/i.test(histText), histText.slice(0, 60).replace(/\n/g, ' '));
     await ev('closeSheet()');
-    await ev('copyResults()');
-    check('S6 copyResults() ไม่ throw', true);
+    await ev('copyResults(); "started"');
+    let copyDlg = true;
+    try { await waitFor('!!document.getElementById("dialogOverlay")', 'copyResults dialog', 8000); } catch (e) { copyDlg = false; }
+    await ev('__T.clickDlg()');
+    check('S6 copyResults() แสดง dialog "คัดลอกแล้ว"', copyDlg, `dialog=${copyDlg} native=${dialogs.length}`);
 
     /* ===== S7: undo การแขวน (เกมแยก) ===== */
     const undoInfo = await ev(`(async () => {
@@ -400,7 +418,7 @@ async function main() {
       startVoting();
       const preAlive = alive().length;
       __T.collectVotes();
-      finishVoting();
+      await __T.settle(finishVoting());
       if(S.screen !== 'execution') return {error:'not execution', screen:S.screen};
       const exId = S.ui.exId;
       const deadAfterVote = !getP(exId).alive;

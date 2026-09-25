@@ -259,21 +259,22 @@ function getScreenLabel(screen){
   return map[screen] || 'กำลังเล่น';
 }
 function hasSave(){ return !!getSaveInfo(); }
-function clearSave(){
-  if(!confirm('ลบข้อมูลเก่าทั้งหมด?')) return;
+async function clearSave(){
+  if(!await askConfirm('ลบข้อมูลเก่าทั้งหมด?', 'ลบข้อมูล', {danger:true, okLabel:'ลบ'})) return;
   try{ localStorage.removeItem(SAVE_KEY); }catch(e){}
   S.g = null; S.ui = newUI(); S.screen = 'home';
   stopT(); releaseWake(); render();
 }
-function continueGame(){
-  if(!load(true)){ alert('ไม่พบข้อมูลเก่า'); return; }
+async function continueGame(){
+  if(!load(true)){ await askAlert('ไม่พบข้อมูลเก่า'); return; }
   if(S.g && S.setup.keepAwake) requestWake();
   render();
 }
-function confirmLeaveGame(){
+async function confirmLeaveGame(){
   const isEnded = S.g && S.g.winner;
   if(!isEnded){
-    if(!confirm('กลับหน้าหลัก?\n\nเกมปัจจุบันจะถูกบันทึกไว้ — เล่นต่อได้จากหน้าแรก')){
+    const ok = await askConfirm('กลับหน้าหลัก?\n\nเกมปัจจุบันจะถูกบันทึกไว้ — เล่นต่อได้จากหน้าแรก', 'ออกจากเกม?', {okLabel:'กลับหน้าหลัก'});
+    if(!ok){
       return;
     }
   }
@@ -497,8 +498,8 @@ function reshuffleAssign(){
   vibrate(30);
   render();
 }
-function resetAssign(){
-  if(!confirm('ล้างบทบาททั้งหมดเป็น "ชาวบ้าน"?')) return;
+async function resetAssign(){
+  if(!await askConfirm('ล้างบทบาททั้งหมดเป็น "ชาวบ้าน"?', 'ล้างบทบาท', {danger:true, okLabel:'ล้าง'})) return;
   S.ui.assign = {};
   for(let i=0;i<S.setup.n;i++) S.ui.assign[i] = 'villager';
   vibrate(30);
@@ -828,7 +829,7 @@ function markWolfCubDead(killedIds){
     }
   }
 }
-function endNight(){
+async function endNight(){
   const lines = [];
   const kt = S.g.night.killTarget;
   const kt2 = S.g.night.killTarget2;
@@ -874,7 +875,7 @@ function endNight(){
     lines.push('🌀 ผู้ต้องสาป: ' + (cursed.isTurned ? 'กลายเป็นหมาป่าแล้ว' : 'ยังเป็นชาวบ้าน'));
   }
   const summary = '🌙 สรุปกลางคืนวันที่ ' + S.g.round + ':\n\n' + lines.join('\n') + '\n\nยืนยันจบกลางคืน?';
-  if(!confirm(summary)) return;
+  if(!await askConfirm(summary, 'สรุปกลางคืน', {okLabel:'จบกลางคืน'})) return;
 
   const kills = [];
   if(S.g.night.killTarget !== null) kills.push(S.g.night.killTarget);
@@ -1042,12 +1043,12 @@ function confirmVote(){
   vibrate(30);
   render();
 }
-function confirmSkipVote(){
+async function confirmSkipVote(){
   if(S.ui.vVoter===null) return;
   if(S.ui.vTarget !== null){
     const vp = getP(S.ui.vVoter), tp = getP(S.ui.vTarget);
     if(vp && tp){
-      if(!confirm('ยกเลิกการเลือก '+tp.name+'\n\nแล้วกดข้ามแทน?')) return;
+      if(!await askConfirm('ยกเลิกการเลือก '+tp.name+'\n\nแล้วกดข้ามแทน?', 'เปลี่ยนเป็นข้าม?')) return;
     }
   }
   S.ui.votes.push({voterId:S.ui.vVoter, targetId:null, skip:true});
@@ -1057,9 +1058,9 @@ function confirmSkipVote(){
   render();
 }
 function undoVote(){ if(S.ui.votes.length){ S.ui.votes.pop(); vibrate(15); render(); } }
-function resetVotes(){
+async function resetVotes(){
   if(!S.ui.votes.length) return;
-  if(!confirm('ล้างคะแนนโหวตทั้งหมด?')) return;
+  if(!await askConfirm('ล้างคะแนนโหวตทั้งหมด?', 'ล้างคะแนนโหวต', {danger:true, okLabel:'ล้าง'})) return;
   S.ui.votes = []; S.ui.vVoter = null; S.ui.vTarget = null;
   render();
 }
@@ -1074,8 +1075,8 @@ function tally(){
   }
   return t;
 }
-function finishVoting(){
-  if(!S.ui.votes.length){ alert('ยังไม่มีคะแนนโหวต'); return; }
+async function finishVoting(){
+  if(!S.ui.votes.length){ await askAlert('ยังไม่มีคะแนนโหวต', 'ยังไม่มีคะแนนโหวต'); return; }
   const realVotes = S.ui.votes.filter(v=>!v.skip);
   const summary = S.ui.votes.map(v=>{
     const a = getP(v.voterId);
@@ -1089,7 +1090,7 @@ function finishVoting(){
   if(!realVotes.length){
     const notVoted = dayAlive().filter(p=>!hasVoted(p.id)).map(p=>p.name);
     const pendingMsg = notVoted.length ? `\n\nยังไม่ได้โหวต: ${notVoted.join(', ')}` : '';
-    const goNight = confirm('ไม่มีใครโหวตให้ใครเลย\n(ทุกคนที่กดแล้วเลือกข้าม)' + pendingMsg + '\n\nไปกลางคืนโดยไม่แขวนใคร?');
+    const goNight = await askConfirm('ไม่มีใครโหวตให้ใครเลย\n(ทุกคนที่กดแล้วเลือกข้าม)' + pendingMsg + '\n\nไปกลางคืนโดยไม่แขวนใคร?', 'ไปกลางคืน?', {okLabel:'ไปกลางคืน'});
     if(!goNight) return;
     addLog('day', '⚖️ ไม่มีใครถูกแขวน (ทุกคนข้าม)');
     const win = checkWin();
@@ -1273,11 +1274,11 @@ function modStart(e){
   const el = $('modTrig');
   if(el) el.classList.add('hold');
   vibrate(20);
-  modTimer = setTimeout(()=>{
+  modTimer = setTimeout(async ()=>{
     modTimer = null;
     if(el) el.classList.remove('hold');
     vibrate([50,30,50]);
-    if(confirm('🔐 เปิด Moderator Panel?\n\nตรวจสอบให้แน่ใจว่าไม่มีผู้เล่นมองเห็น')){
+    if(await askConfirm('🔐 เปิด Moderator Panel?\n\nตรวจสอบให้แน่ใจว่าไม่มีผู้เล่นมองเห็น', 'เปิด Moderator Panel?', {okLabel:'เปิด'})){
       showModPanel();
     }
   }, 3000);
@@ -1442,6 +1443,57 @@ function openSheet(title, bodyHtml){
   document.body.appendChild(ov);
 }
 function closeSheet(){ const el = $('sheetOverlay'); if(el) el.remove(); }
+
+/* ========== DIALOG (แทน confirm / alert / prompt ของเบราว์เซอร์) ========== */
+let __dlgSettle = null;
+function closeDialog(){
+  const el = $('dialogOverlay');
+  if(el) el.remove();
+  if(__dlgSettle){ const s = __dlgSettle; __dlgSettle = null; s(false); }
+}
+function showDialog(opts){
+  closeDialog();
+  const title = opts.title || 'ยืนยัน';
+  const message = opts.message || '';
+  const okLabel = opts.okLabel || 'ยืนยัน';
+  const cancelLabel = opts.cancelLabel || 'ยกเลิก';
+  const single = !!opts.single;
+  const danger = !!opts.danger;
+  return new Promise((resolve) => {
+    const ov = document.createElement('div');
+    ov.className = 'overlay dlg-ov';
+    ov.id = 'dialogOverlay';
+    const done = (val) => {
+      document.removeEventListener('keydown', onKey, true);
+      if(__dlgSettle === done) __dlgSettle = null;
+      ov.remove();
+      resolve(val);
+    };
+    const onKey = (e) => {
+      if(e.key === 'Escape'){ e.preventDefault(); e.stopPropagation(); done(single ? true : false); }
+      else if(e.key === 'Enter'){ e.preventDefault(); done(true); }
+    };
+    ov.innerHTML = `<div class="sheet dlg" role="dialog" aria-modal="true" aria-label="${esc(title)}">
+      <div class="sheet-head"><h3>${esc(title)}</h3></div>
+      <div class="dlg-msg">${esc(message)}</div>
+      <div class="dlg-actions">
+        ${single ? '' : `<button type="button" class="btn" data-dlg="0">${esc(cancelLabel)}</button>`}
+        <button type="button" class="btn ${danger ? 'dg' : 'p'}" data-dlg="1">${esc(okLabel)}</button>
+      </div>
+    </div>`;
+    document.body.appendChild(ov);
+    ov.querySelector('[data-dlg="1"]').onclick = () => done(true);
+    const cancel = ov.querySelector('[data-dlg="0"]');
+    if(cancel) cancel.onclick = () => done(false);
+    ov.addEventListener('click', (e) => { if(e.target === ov) done(single ? true : false); });
+    document.addEventListener('keydown', onKey, true);
+    __dlgSettle = done;
+    const okBtn = ov.querySelector('[data-dlg="1"]');
+    if(okBtn) okBtn.focus();
+  });
+}
+const askConfirm = (message, title, opts) => showDialog(Object.assign({title: title || 'ยืนยัน', message, okLabel: 'ยืนยัน'}, opts || {}));
+const askAlert = (message, title) => showDialog({title: title || 'แจ้งเตือน', message, single: true, okLabel: 'ตกลง'});
 
 /* ========== RENDER HELPERS ========== */
 const chip = (label, opts={}) => {
@@ -2438,7 +2490,7 @@ function renderEnd(){
     ${btn('กลับหน้าหลัก', 'goHome()')}
   </div>`;
 }
-function copyResults(){
+async function copyResults(){
   if(!S.g) return;
   const lines = [];
   lines.push('🐺 คืนหอนหลอนหมาป่า — ผลเกม');
@@ -2453,23 +2505,38 @@ function copyResults(){
     lines.push(`- ${p.name}: ${R.name} ${tr} [${st}]`);
   }
   const text = lines.join('\n');
+  let copied = false;
   try{
     if(navigator.clipboard && navigator.clipboard.writeText){
-      navigator.clipboard.writeText(text).then(()=>alert('คัดลอกแล้ว!')).catch(()=>fallbackCopy(text));
-    } else {
-      fallbackCopy(text);
+      await navigator.clipboard.writeText(text);
+      copied = true;
     }
-  }catch(e){ fallbackCopy(text); }
+  }catch(e){ copied = false; }
+  if(copied){
+    await askAlert('คัดลอกผลลัพธ์ลงคลิปบอร์ดแล้ว', 'คัดลอกแล้ว');
+  } else {
+    await fallbackCopy(text);
+  }
 }
-function fallbackCopy(text){
+async function fallbackCopy(text){
   const ta = document.createElement('textarea');
   ta.value = text;
   ta.style.position = 'fixed';
   ta.style.opacity = '0';
   document.body.appendChild(ta);
   ta.select();
-  try{ document.execCommand('copy'); alert('คัดลอกแล้ว!'); }catch(e){ prompt('คัดลอกด้วยตนเอง:', text); }
+  let copied = false;
+  try{ copied = document.execCommand('copy'); }catch(e){ copied = false; }
   document.body.removeChild(ta);
+  if(copied){
+    await askAlert('คัดลอกผลลัพธ์ลงคลิปบอร์ดแล้ว', 'คัดลอกแล้ว');
+  } else {
+    await showDialog({
+      title: 'คัดลอกด้วยตนเอง',
+      message: 'การคัดลอกอัตโนมัติไม่สำเร็จ\nคัดลอกข้อความด้านล่างเองได้เลย:\n\n' + text,
+      single: true, okLabel: 'ปิด'
+    });
+  }
 }
 
 /* ========== BOOT ========== */
