@@ -2882,17 +2882,28 @@ async function fallbackCopy(text){
 (function registerSW(){
   if(!('serviceWorker' in navigator)) return;
   if(location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') return;
-  window.addEventListener('load', function(){
-    navigator.serviceWorker.register('sw.js').then(function(reg){
-      reg.addEventListener('updatefound', function(){
-        const nw = reg.installing;
-        if(!nw) return;
-        nw.addEventListener('statechange', function(){
-          if(nw.state === 'installed' && navigator.serviceWorker.controller){
-            console.log('[PWA] มีเวอร์ชันใหม่ — จะใช้ในการเปิดหน้าครั้งถัดไป');
-          }
-        });
+  function watchUpdates(reg){
+    reg.addEventListener('updatefound', function(){
+      const nw = reg.installing;
+      if(!nw) return;
+      nw.addEventListener('statechange', function(){
+        if(nw.state === 'installed' && navigator.serviceWorker.controller){
+          console.log('[PWA] มีเวอร์ชันใหม่ — จะใช้ในการเปิดหน้าครั้งถัดไป');
+        }
       });
+    });
+    /* เช็กเวอร์ชัน SW ใหม่ทุกครั้งที่กลับมาที่แท็บ (กันค้างเวอร์ชันเก่า) */
+    document.addEventListener('visibilitychange', function(){
+      if(document.visibilityState === 'visible'){
+        reg.update().catch(function(){});
+      }
+    });
+  }
+  window.addEventListener('load', function(){
+    /* updateViaCache:'none' → ไม่ใช้แคช HTTP กับ sw.js เสมอ (ได้เวอร์ชันใหม่ทันที) */
+    navigator.serviceWorker.register('sw.js', {updateViaCache:'none'}).then(function(reg){
+      watchUpdates(reg);
+      reg.update().catch(function(){});
     }).catch(function(err){ console.warn('[PWA] ติดตั้ง service worker ไม่สำเร็จ:', err); });
   });
 })();

@@ -25,7 +25,7 @@
 | `styles.css` | ~23 KB | ✅ ธีม dark/light, การ์ด, ปุ่ม, แอนิเมชัน, responsive |
 | `app.js` | ~110 KB | ✅ ตรรกะเกมทั้งหมด (แยกมาจากเดิมเมื่อ 25 ก.ย. 2026) — เวอร์ชัน **10.0** (SAVE_KEY `werewolf_v9`) |
 | `manifest.json` | 1 KB | ✅ PWA manifest (ชื่อ, scope, ไอคอน 5 แบบ) |
-| `sw.js` | ~2 KB | ✅ Service Worker v1.6.0 — cache shell + ทำงานออฟไลน์ได้ |
+| `sw.js` | ~4 KB | ✅ Service Worker v1.7.0 — network-first + cache fallback + self-heal (กัน `ERR_FAILED`) |
 | `icon.svg` + `icons/*.png` | 6 ไฟล์ | ✅ ไอคอน 180/192/512 + maskable |
 | `TESTING.md` | — | ✅ Smoke test checklist (manual) |
 | `test/smoke.mjs` | — | ✅ E2E test อัตโนมัติ 51 checks (`npm test`) |
@@ -137,7 +137,7 @@ BOOT        load → applyTheme → render → ลงทะเบียน servi
 - Favicon + apple-touch-icon เป็น SVG inline, meta สำหรับ iOS PWA-capable, `viewport-fit=cover` + safe-area
 
 ### 3.7 สิ่งที่เพิ่มในรอบ P1 (25 ก.ย. 2026)
-- **แยกไฟล์** — `index.html` (shell 1.7KB) + `styles.css` + `app.js` + `sw.js` v1.6.0
+- **แยกไฟล์** — `index.html` (shell 1.7KB) + `styles.css` + `app.js` + `sw.js` v1.7.0
 - **Dialog กลางจอ** แทน `confirm()`/`alert()`/`prompt()` หมดทุกจุด (`showDialog`/`askConfirm`/`askAlert`)
 - **Preset ชุดบทบาท** — มาตรฐาน/Party/Competitive (4-18 คน) + ชิปจำนวนผู้เล่น + บันทึกชุดเอง (`werewolf_presets`)
 - **3 ช่องบันทึกเกม** (`werewolf_v9`, `_s2`, `_s3`) สลับจากหน้าแรก + resume ต่อเนื่อง + **ประวัติ 10 เกมล่าสุด** (`werewolf_history`)
@@ -191,7 +191,7 @@ BOOT        load → applyTheme → render → ลงทะเบียน servi
 2. **ย้าย `InDexBlackUp.html`** — ✅ ย้ายไป `archive/InDexBlackUp.v9.6.html` (ประวัติเก่าอยู่ใน git แล้ว)
 3. **เพิ่ม PWA** — ✅
    - `manifest.json` (ชื่อไทย, `display: standalone`, scope `./`, ไอคอน 5 แบบ)
-   - `sw.js` (v1.0.0 → v1.6.0) — precache shell, cache-first + revalidate ตอนหลัง, cleanup cache เก่า, fallback ข้อความออฟไลน์
+   - `sw.js` (v1.0.0 → v1.7.0) — precache shell, network-first สำหรับ navigation (fallback cache ถ้าเน็ตขาด), cache-first + revalidate ตอนหลัง สำหรับ asset, cleanup cache เก่า, **ทุก path จับ error ครบ → ไม่มีทาง reject เป็น `ERR_FAILED`**, มีหน้า self-heal (unregister SW แล้ว reload) เป็นตาข่ายสุดท้าย
    - ไอคอน `icon.svg` + `icons/icon-180|192|512.png` + `icons/icon-maskable-192|512.png`
    - `index.html`: เพิ่ม `<link rel="manifest">`, `apple-touch-icon` เป็น PNG จริง, meta description, และลงทะเบียน SW (เฉพาะ http/localhost)
    - **ผลทดสอบอัตโนมัติผ่านแล้ว**: SW registered + controlling, cache ครบ 10 รายการ, จำลอง Offline แล้วรีเฟรช → แอปโหลดได้
