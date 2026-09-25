@@ -4,13 +4,13 @@
  * รัน: node test/smoke.mjs   (ต้องมี Chrome/Edge ติดตั้งอยู่)
  * ไม่ต้องใช้ npm dependency — ใช้ Node http server + Chrome DevTools Protocol ตรง ๆ
  */
-import { spawn, spawnSync } from 'node:child_process';
+import {spawn, spawnSync} from 'node:child_process';
 import http from 'node:http';
 import net from 'node:net';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { fileURLToPath } from 'node:url';
+import {fileURLToPath} from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 let PAGE = '';
@@ -19,7 +19,10 @@ const IS_WIN = process.platform === 'win32';
 function freePort() {
   return new Promise((resolve, reject) => {
     const s = net.createServer();
-    s.listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => resolve(p)); });
+    s.listen(0, '127.0.0.1', () => {
+      const p = s.address().port;
+      s.close(() => resolve(p));
+    });
     s.on('error', reject);
   });
 }
@@ -27,17 +30,26 @@ function freePort() {
 /** kill chrome + ลูก process ทั้งหมด (chrome spawn เป็น tree) */
 function killTree(pid) {
   if (!pid) return;
-  if (IS_WIN) spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], { stdio: 'ignore' });
-  else { try { process.kill(-pid, 'SIGKILL'); } catch { try { process.kill(pid, 'SIGKILL'); } catch {} } }
+  if (IS_WIN) spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], {stdio: 'ignore'});
+  else {
+    try {
+      process.kill(-pid, 'SIGKILL');
+    } catch {
+      try {
+        process.kill(pid, 'SIGKILL');
+      } catch {}
+    }
+  }
 }
 
 /** เก็บกวาด chrome ที่ค้างจากเทสก่อนหน้า (กัน localStorage รั่วข้าม run) */
 function sweepLeftovers() {
   if (!IS_WIN) return;
-  const ps = "Get-CimInstance Win32_Process -Filter \"Name='chrome.exe'\" | " +
+  const ps =
+    'Get-CimInstance Win32_Process -Filter "Name=\'chrome.exe\'" | ' +
     "Where-Object { $_.CommandLine -like '*ww-smoke-*' } | " +
-    "ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }";
-  spawnSync('powershell', ['-NoProfile', '-Command', ps], { stdio: 'ignore' });
+    'ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }';
+  spawnSync('powershell', ['-NoProfile', '-Command', ps], {stdio: 'ignore'});
 }
 
 const CHROME_CANDIDATES = [
@@ -62,10 +74,10 @@ const MIME = {
   '.ico': 'image/x-icon'
 };
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const sleep = ms => new Promise(r => setTimeout(r, ms));
 const results = [];
 function check(name, ok, detail = '') {
-  results.push({ name, ok: !!ok, detail });
+  results.push({name, ok: !!ok, detail});
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? '  — ' + detail : ''}`);
 }
 
@@ -75,14 +87,20 @@ function startServer(port) {
     const urlPath = decodeURIComponent(new URL(req.url, 'http://x').pathname);
     const rel = urlPath === '/' ? '/index.html' : urlPath;
     const file = path.join(ROOT, path.normalize(rel).replace(/^(\.\.[/\\])+/, ''));
-    if (!file.startsWith(ROOT)) { res.writeHead(403); return res.end(); }
+    if (!file.startsWith(ROOT)) {
+      res.writeHead(403);
+      return res.end();
+    }
     fs.readFile(file, (err, data) => {
-      if (err) { res.writeHead(404); return res.end('not found'); }
-      res.writeHead(200, { 'Content-Type': MIME[path.extname(file).toLowerCase()] || 'application/octet-stream' });
+      if (err) {
+        res.writeHead(404);
+        return res.end('not found');
+      }
+      res.writeHead(200, {'Content-Type': MIME[path.extname(file).toLowerCase()] || 'application/octet-stream'});
       res.end(data);
     });
   });
-  return new Promise((resolve) => server.listen(port, '127.0.0.1', () => resolve(server)));
+  return new Promise(resolve => server.listen(port, '127.0.0.1', () => resolve(server)));
 }
 
 /* ---------- page driver (注入 ลงในหน้า) ---------- */
@@ -194,28 +212,45 @@ async function main() {
   const httpPort = await freePort();
   PAGE = `http://127.0.0.1:${httpPort}/index.html`;
   const server = await startServer(httpPort);
-  const chromePath = CHROME_CANDIDATES.find((p) => fs.existsSync(p));
+  const chromePath = CHROME_CANDIDATES.find(p => fs.existsSync(p));
   if (!chromePath) throw new Error('ไม่พบ Chrome/Edge');
 
   const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'ww-smoke-'));
-  const chrome = spawn(chromePath, [
-    '--headless=new', '--disable-gpu', '--no-sandbox', '--no-first-run',
-    '--hide-scrollbars', '--disable-background-timer-throttling',
-    `--remote-debugging-port=${CDP_PORT}`, `--user-data-dir=${profile}`, PAGE
-  ], { stdio: 'ignore', detached: !IS_WIN });
+  const chrome = spawn(
+    chromePath,
+    [
+      '--headless=new',
+      '--disable-gpu',
+      '--no-sandbox',
+      '--no-first-run',
+      '--hide-scrollbars',
+      '--disable-background-timer-throttling',
+      `--remote-debugging-port=${CDP_PORT}`,
+      `--user-data-dir=${profile}`,
+      PAGE
+    ],
+    {stdio: 'ignore', detached: !IS_WIN}
+  );
 
   const pageErrors = [];
   const httpErrors = [];
   const dialogs = [];
-  let ws, sendId = 0;
+  let ws,
+    sendId = 0;
   const pending = new Map();
 
   const cleanup = () => {
-    try { ws && ws.close(); } catch {}
+    try {
+      ws && ws.close();
+    } catch {}
     killTree(chrome.pid);
     sweepLeftovers();
-    try { server.close(); } catch {}
-    try { fs.rmSync(profile, { recursive: true, force: true }); } catch {}
+    try {
+      server.close();
+    } catch {}
+    try {
+      fs.rmSync(profile, {recursive: true, force: true});
+    } catch {}
   };
 
   try {
@@ -223,21 +258,28 @@ async function main() {
     let target = null;
     for (let i = 0; i < 60 && !target; i++) {
       try {
-        const list = await fetch(`http://127.0.0.1:${CDP_PORT}/json/list`).then((r) => r.json());
-        target = list.find((t) => t.type === 'page');
+        const list = await fetch(`http://127.0.0.1:${CDP_PORT}/json/list`).then(r => r.json());
+        target = list.find(t => t.type === 'page');
       } catch {}
       if (!target) await sleep(250);
     }
     if (!target) throw new Error('เชื่อมต่อ Chrome ไม่ได้');
 
     ws = new WebSocket(target.webSocketDebuggerUrl);
-    await new Promise((res, rej) => { ws.onopen = res; ws.onerror = rej; });
-    ws.onmessage = (ev) => {
+    await new Promise((res, rej) => {
+      ws.onopen = res;
+      ws.onerror = rej;
+    });
+    ws.onmessage = ev => {
       const m = JSON.parse(ev.data);
-      if (m.id && pending.has(m.id)) { pending.get(m.id)(m); pending.delete(m.id); return; }
+      if (m.id && pending.has(m.id)) {
+        pending.get(m.id)(m);
+        pending.delete(m.id);
+        return;
+      }
       if (m.method === 'Page.javascriptDialogOpening') {
         dialogs.push(m.params.message);
-        send('Page.handleJavaScriptDialog', { accept: true }).catch(() => {});
+        send('Page.handleJavaScriptDialog', {accept: true}).catch(() => {});
       } else if (m.method === 'Runtime.exceptionThrown') {
         const d = m.params.exceptionDetails;
         pageErrors.push(d.exception?.description || d.text);
@@ -253,17 +295,29 @@ async function main() {
     function send(method, params = {}) {
       return new Promise((res, rej) => {
         const i = ++sendId;
-        const timer = setTimeout(() => { pending.delete(i); rej(new Error('timeout: ' + method)); }, 20000);
-        pending.set(i, (m) => { clearTimeout(timer); m.error ? rej(new Error(JSON.stringify(m.error))) : res(m); });
-        ws.send(JSON.stringify({ id: i, method, params }));
+        const timer = setTimeout(() => {
+          pending.delete(i);
+          rej(new Error('timeout: ' + method));
+        }, 20000);
+        pending.set(i, m => {
+          clearTimeout(timer);
+          m.error ? rej(new Error(JSON.stringify(m.error))) : res(m);
+        });
+        ws.send(JSON.stringify({id: i, method, params}));
       });
     }
     async function ev(expression, timeoutMs = 25000) {
       const i = ++sendId;
       const result = await new Promise((res, rej) => {
-        const timer = setTimeout(() => { pending.delete(i); rej(new Error('evaluate timeout: ' + expression.slice(0, 140))); }, timeoutMs);
-        pending.set(i, (m) => { clearTimeout(timer); res(m); });
-        ws.send(JSON.stringify({ id: i, method: 'Runtime.evaluate', params: { expression, awaitPromise: true, returnByValue: true } }));
+        const timer = setTimeout(() => {
+          pending.delete(i);
+          rej(new Error('evaluate timeout: ' + expression.slice(0, 140)));
+        }, timeoutMs);
+        pending.set(i, m => {
+          clearTimeout(timer);
+          res(m);
+        });
+        ws.send(JSON.stringify({id: i, method: 'Runtime.evaluate', params: {expression, awaitPromise: true, returnByValue: true}}));
       });
       if (result.error) throw new Error(JSON.stringify(result.error));
       const d = result.result;
@@ -274,7 +328,11 @@ async function main() {
       const t0 = Date.now();
       for (;;) {
         let v;
-        try { v = await ev(expression, 5000); } catch { v = false; }
+        try {
+          v = await ev(expression, 5000);
+        } catch {
+          v = false;
+        }
         if (v) return true;
         if (Date.now() - t0 > timeoutMs) throw new Error('waitFor timeout: ' + label);
         await sleep(250);
@@ -293,7 +351,10 @@ async function main() {
     check('S1 มีปุ่มเริ่มเกม/ตั้งค่า', homeText.includes('เริ่มเกมใหม่') || homeText.includes('ตั้งค่าเกม'), JSON.stringify(homeText.slice(0, 200)));
 
     await ev('showHelp()');
-    check('S1 หน้าวิธีใช้ (sheet) เปิดได้', await ev('!!document.getElementById("sheetOverlay") && document.getElementById("sheetOverlay").innerText.includes("ตั้งค่า")'));
+    check(
+      'S1 หน้าวิธีใช้ (sheet) เปิดได้',
+      await ev('!!document.getElementById("sheetOverlay") && document.getElementById("sheetOverlay").innerText.includes("ตั้งค่า")')
+    );
     await ev('closeSheet()');
     check('S1 ปิด sheet ได้', await ev('!document.getElementById("sheetOverlay")'));
 
@@ -308,7 +369,8 @@ async function main() {
     await ev("setTheme('auto')");
 
     /* ===== S3: setup ครบทุกบทบาท + manual assign ===== */
-    const setupInfo = await ev(`(() => {
+    const setupInfo =
+      (await ev(`(() => {
       goSetup();
       S.setup.n = 16;
       S.setup.names = Array.from({length:16}, (_,i) => 'P' + (i+1));
@@ -316,7 +378,7 @@ async function main() {
                        cupid:1, mayor:1, cursed:1, fool:1, infected:1, prince:1, grandma:1};
       S.setup.assignMode = 'manual';
       return {can: canStart(), roles: totalRoles(), vill: villagerCount(), warn: balanceWarnings().length};
-    })()`) || {};
+    })()`)) || {};
     check('S3 canStart() = true (หมาป่า < ชาวบ้าน)', setupInfo.can === true);
     check('S3 บทบาทพิเศษครบ 15 ใบ (หมาป่า 2)', setupInfo.roles === 15, `roles=${setupInfo.roles}`);
     check('S3 ชาวบ้านธรรมดาเหลือ 1', setupInfo.vill === 1, `vill=${setupInfo.vill}`);
@@ -326,7 +388,8 @@ async function main() {
     const presetUi = await ev('document.getElementById("app").innerText');
     check('S3b การ์ด preset แสดงในหน้าตั้งค่า', presetUi.toUpperCase().includes('PRESET ชุดบทบาท'));
 
-    const presetInfo = await ev(`(async () => {
+    const presetInfo =
+      (await ev(`(async () => {
       const snap = {n:S.setup.n, names:S.setup.names.slice(), roles:Object.assign({}, S.setup.roles), mode:S.setup.assignMode};
       const bad = [];
       for(const k of ['std','party','comp']){
@@ -358,22 +421,36 @@ async function main() {
       S.setup.n = snap.n; S.setup.names = snap.names; S.setup.roles = snap.roles; S.setup.assignMode = snap.mode;
       render();
       return {bad, loadedOk, gone, savedCount: saved.length};
-    })()`) || {};
-    check('S3b preset 3 ชุด x 4-18 คน เล่นได้จริง (canStart/ไม่ล้น/มีชาวบ้าน/ไม่มี ⚠)', Array.isArray(presetInfo.bad) && presetInfo.bad.length === 0, JSON.stringify(presetInfo.bad || []));
-    check('S3b บันทึก → โหลด → ลบ custom preset ได้', presetInfo.loadedOk === true && presetInfo.gone === true && presetInfo.savedCount === 1, JSON.stringify(presetInfo));
+    })()`)) || {};
+    check(
+      'S3b preset 3 ชุด x 4-18 คน เล่นได้จริง (canStart/ไม่ล้น/มีชาวบ้าน/ไม่มี ⚠)',
+      Array.isArray(presetInfo.bad) && presetInfo.bad.length === 0,
+      JSON.stringify(presetInfo.bad || [])
+    );
+    check(
+      'S3b บันทึก → โหลด → ลบ custom preset ได้',
+      presetInfo.loadedOk === true && presetInfo.gone === true && presetInfo.savedCount === 1,
+      JSON.stringify(presetInfo)
+    );
 
     await ev('startGame()');
     check('S3 manual mode → หน้าจัดบทบาท', (await ev('S.screen')) === 'assign');
-    check('S3 บทบาทในตารางถูกต้อง (isAssignValid)', await ev('isAssignValid()') === true);
+    check('S3 บทบาทในตารางถูกต้อง (isAssignValid)', (await ev('isAssignValid()')) === true);
     await ev('reshuffleAssign()');
-    check('S3 สุ่มบทบาทใหม่ยัง valid', await ev('isAssignValid()') === true);
+    check('S3 สุ่มบทบาทใหม่ยัง valid', (await ev('isAssignValid()')) === true);
     await ev('confirmAssign()');
     check('S3 ยืนยัน → หน้าแจกการ์ด', (await ev('S.screen')) === 'reveal');
 
     /* ===== S4: reveal → night ===== */
     const roleCount = await ev('(()=>{const m={};for(const p of S.g.players)m[p.roleId]=(m[p.roleId]||0)+1;return m;})()');
-    check('S4 ผู้เล่น 16 คน ครบตามที่ตั้ง', await ev('S.g.players.length') === 16);
-    check('S4 มีครบทุกบทบาทในเกม', ['werewolf','wolfcub','seer','witch','hunter','doctor','bodyguard','cupid','mayor','cursed','fool','infected','prince','grandma'].every((r) => roleCount[r] === 1 || (r === 'werewolf' && roleCount[r] === 2)), JSON.stringify(roleCount));
+    check('S4 ผู้เล่น 16 คน ครบตามที่ตั้ง', (await ev('S.g.players.length')) === 16);
+    check(
+      'S4 มีครบทุกบทบาทในเกม',
+      ['werewolf', 'wolfcub', 'seer', 'witch', 'hunter', 'doctor', 'bodyguard', 'cupid', 'mayor', 'cursed', 'fool', 'infected', 'prince', 'grandma'].every(
+        r => roleCount[r] === 1 || (r === 'werewolf' && roleCount[r] === 2)
+      ),
+      JSON.stringify(roleCount)
+    );
 
     await ev('for(let i=0;i<40 && S.screen==="reveal"; i++) nextRv();');
     check('S4 เดินหน้าแจกการ์ดจนจบ → กลางคืน', (await ev('S.screen')) === 'night');
@@ -404,14 +481,17 @@ async function main() {
     while (rounds < 40) {
       const screen = await ev('S.screen');
       if (screen === 'end') break;
-      if (screen !== 'night') { check('S6 อยู่ในเฟสถูกต้อง', false, 'unexpected screen=' + screen); break; }
+      if (screen !== 'night') {
+        check('S6 อยู่ในเฟสถูกต้อง', false, 'unexpected screen=' + screen);
+        break;
+      }
       await ev('__T.playRound()');
       rounds++;
 
       if (rounds === 1 && (await ev('S.screen')) === 'night') {
         const snap = await ev('({screen:S.screen, round:S.g.round, alive:alive().length, seer:S.g.seerChecks.length, log:S.g.log.length})');
         await ev('save()');
-        await send('Page.navigate', { url: PAGE });
+        await send('Page.navigate', {url: PAGE});
         await waitFor('!!document.getElementById("app") && document.getElementById("app").innerHTML.length > 500', 'reload');
         await ev(DRIVER);
         const hasSave = await ev('hasSave()');
@@ -422,7 +502,9 @@ async function main() {
       }
     }
 
-    const endState = await ev('({screen:S.screen, winner:S.g ? S.g.winner : null, reason:S.g ? S.g.winReason : null, round:S.g ? S.g.round : 0, alive:alive().length})');
+    const endState = await ev(
+      '({screen:S.screen, winner:S.g ? S.g.winner : null, reason:S.g ? S.g.winReason : null, round:S.g ? S.g.round : 0, alive:alive().length})'
+    );
     check('S6 เกมจบภายใน 40 รอบ', endState.screen === 'end', `round=${endState.round} alive=${endState.alive}`);
     check('S6 มีผู้ชนะถูกต้อง', ['village', 'werewolf', 'lovers', 'fool'].includes(endState.winner), `winner=${endState.winner} (${endState.reason})`);
     check('S6 เล่นจบโดยไม่ติด state กลางคัน', endState.alive >= 0);
@@ -440,7 +522,11 @@ async function main() {
     await ev('closeSheet()');
     await ev('copyResults(); "started"');
     let copyDlg = true;
-    try { await waitFor('!!document.getElementById("dialogOverlay")', 'copyResults dialog', 8000); } catch (e) { copyDlg = false; }
+    try {
+      await waitFor('!!document.getElementById("dialogOverlay")', 'copyResults dialog', 8000);
+    } catch (e) {
+      copyDlg = false;
+    }
     await ev('__T.clickDlg()');
     check('S6 copyResults() แสดง dialog "คัดลอกแล้ว"', copyDlg, `dialog=${copyDlg} native=${dialogs.length}`);
 
@@ -467,9 +553,11 @@ async function main() {
               preAlive, aliveNow:alive().length, snap:S.ui.preExecuteSnap};
     })()`);
     check('S7 หลังจบเกม → แขวน → undo กลับหน้าโหวต', undoInfo && undoInfo.screen === 'voting', JSON.stringify(undoInfo));
-    check('S7 แขวนแล้วคนตายจริง → undo กลับมามีชีวิต + คนเท่าเดิม',
+    check(
+      'S7 แขวนแล้วคนตายจริง → undo กลับมามีชีวิต + คนเท่าเดิม',
       undoInfo && undoInfo.deadAfterVote === true && undoInfo.aliveAfter === true && undoInfo.aliveNow === undoInfo.preAlive,
-      `pre=${undoInfo?.preAlive} now=${undoInfo?.aliveNow}`);
+      `pre=${undoInfo?.preAlive} now=${undoInfo?.aliveNow}`
+    );
 
     /* ===== S8: timer + sheet ===== */
     await ev('startT()');
@@ -480,7 +568,8 @@ async function main() {
     check('S8 หยุดเวลาได้', await ev('S.ui.tRunning === false'));
 
     /* ===== S11: เสียงแจ้งเตือน ===== */
-    const soundInfo = await ev(`(() => {
+    const soundInfo =
+      (await ev(`(() => {
       const out = {isFn: typeof beep === 'function', defaultOn: S.setup.sound === true};
       goSetup();
       const ui = document.getElementById('app').innerText;
@@ -495,36 +584,47 @@ async function main() {
       toggleSetup('sound');
       out.backOn = S.setup.sound === true;
       return out;
-    })()`) || {};
-    check('S11 เสียงแจ้งเตือน: toggle ในหน้าตั้งค่า + beep() ทุกแบบไม่ throw',
+    })()`)) || {};
+    check(
+      'S11 เสียงแจ้งเตือน: toggle ในหน้าตั้งค่า + beep() ทุกแบบไม่ throw',
       soundInfo.isFn === true && soundInfo.defaultOn === true && soundInfo.uiHasToggle === true && (soundInfo.errs || []).length === 0,
-      JSON.stringify(soundInfo));
+      JSON.stringify(soundInfo)
+    );
     check('S11 ปิด/เปิดเสียงได้', soundInfo.off === true && soundInfo.backOn === true, JSON.stringify(soundInfo));
 
     check('S8 ไม่มี JS exception', pageErrors.length === 0, pageErrors.slice(0, 3).join(' | '));
     check('S8 ไม่มี HTTP error (404/500)', httpErrors.length === 0, httpErrors.slice(0, 3).join(' | '));
 
     /* ===== S9: PWA — service worker + โหมดออฟไลน์ ===== */
-    const swInfo = await ev('navigator.serviceWorker.getRegistration().then(r => r ? {scope:r.scope, active:!!r.active, controlled:!!navigator.serviceWorker.controller} : null)');
+    const swInfo = await ev(
+      'navigator.serviceWorker.getRegistration().then(r => r ? {scope:r.scope, active:!!r.active, controlled:!!navigator.serviceWorker.controller} : null)'
+    );
     check('S9 service worker ติดตั้งและ active', !!(swInfo && swInfo.active), JSON.stringify(swInfo));
     const cacheKeys = await ev('caches.keys()');
-    const shellCache = (cacheKeys || []).find((k) => k.startsWith('werewolf-shell-'));
+    const shellCache = (cacheKeys || []).find(k => k.startsWith('werewolf-shell-'));
     check('S9 มี cache shell', !!shellCache, JSON.stringify(cacheKeys));
-    const cachedFiles = shellCache
-      ? await ev(`caches.open(${JSON.stringify(shellCache)}).then(c=>c.keys()).then(ks=>ks.map(k=>new URL(k.url).pathname))`)
-      : [];
+    const cachedFiles = shellCache ? await ev(`caches.open(${JSON.stringify(shellCache)}).then(c=>c.keys()).then(ks=>ks.map(k=>new URL(k.url).pathname))`) : [];
     const need = ['/index.html', '/styles.css', '/app.js', '/manifest.json'];
-    check('S9 cache ครบทุกไฟล์หลัก', need.every((f) => (cachedFiles || []).some((p) => p.endsWith(f))), JSON.stringify(cachedFiles));
+    check(
+      'S9 cache ครบทุกไฟล์หลัก',
+      need.every(f => (cachedFiles || []).some(p => p.endsWith(f))),
+      JSON.stringify(cachedFiles)
+    );
 
-    await send('Network.emulateNetworkConditions', { offline: true, latency: 0, downloadThroughput: 0, uploadThroughput: 0 });
-    await send('Page.navigate', { url: PAGE });
+    await send('Network.emulateNetworkConditions', {offline: true, latency: 0, downloadThroughput: 0, uploadThroughput: 0});
+    await send('Page.navigate', {url: PAGE});
     await waitFor('!!document.getElementById("app") && document.getElementById("app").innerHTML.length > 500', 'offline reload', 15000);
     const offlineOk = await ev('({html: document.getElementById("app").innerHTML.length > 500, css: document.styleSheets.length > 0, title: document.title})');
-    check('S9 ออฟไลน์ → เปิดหน้าใหม่ได้ (HTML+CSS ครบ)', !!(offlineOk && offlineOk.html && offlineOk.css && String(offlineOk.title).includes('คืนหอนหลอนหมาป่า')), JSON.stringify(offlineOk));
-    await send('Network.emulateNetworkConditions', { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
+    check(
+      'S9 ออฟไลน์ → เปิดหน้าใหม่ได้ (HTML+CSS ครบ)',
+      !!(offlineOk && offlineOk.html && offlineOk.css && String(offlineOk.title).includes('คืนหอนหลอนหมาป่า')),
+      JSON.stringify(offlineOk)
+    );
+    await send('Network.emulateNetworkConditions', {offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1});
 
     /* ===== S10: multi-slot + ประวัติเกม ===== */
-    const slotInfo = await ev(`(() => {
+    const slotInfo =
+      (await ev(`(() => {
       const out = {};
       const mk = (round, name, roleId) => JSON.stringify({screen:'night', g:{round, players:[{id:1, name, roleId, alive:true}]}, ui:{}, setup:{}, ver:VER});
       switchSlot(1);
@@ -544,14 +644,22 @@ async function main() {
       out.activeBack = ACTIVE_SLOT === 1;
       out.info1 = info1;
       return out;
-    })()`) || {};
-    check('S10 บันทึกแยกคนละช่อง (ช่อง 2 มีเกมของตัวเอง · สลับไปมาแล้วข้อมูลไม่ปน)',
-      slotInfo.slot2Before === 'empty' && slotInfo.slot2State === 'game' && slotInfo.activeIs2 === true &&
-      (slotInfo.slot2View && slotInfo.slot2View.round === 4) && slotInfo.info1Same === true &&
-      slotInfo.activeBack === true && !!(slotInfo.info1 && slotInfo.info1.round),
-      JSON.stringify(slotInfo));
+    })()`)) || {};
+    check(
+      'S10 บันทึกแยกคนละช่อง (ช่อง 2 มีเกมของตัวเอง · สลับไปมาแล้วข้อมูลไม่ปน)',
+      slotInfo.slot2Before === 'empty' &&
+        slotInfo.slot2State === 'game' &&
+        slotInfo.activeIs2 === true &&
+        slotInfo.slot2View &&
+        slotInfo.slot2View.round === 4 &&
+        slotInfo.info1Same === true &&
+        slotInfo.activeBack === true &&
+        !!(slotInfo.info1 && slotInfo.info1.round),
+      JSON.stringify(slotInfo)
+    );
 
-    const resumeInfo = await ev(`(async () => {
+    const resumeInfo =
+      (await ev(`(async () => {
       switchSlot(2);
       const before = S.screen;
       const label = getSaveInfo() ? getSaveInfo().screenLabel : null;
@@ -559,16 +667,20 @@ async function main() {
       const after = S.screen;
       switchSlot(1);
       return {before, label, after};
-    })()`) || {};
-    check('S10 สลับช่องแล้ว "เล่นต่อ" กลับเข้าเกมเดิมได้ (resume)',
-      resumeInfo.before === 'home' && resumeInfo.after === 'night', JSON.stringify(resumeInfo));
+    })()`)) || {};
+    check('S10 สลับช่องแล้ว "เล่นต่อ" กลับเข้าเกมเดิมได้ (resume)', resumeInfo.before === 'home' && resumeInfo.after === 'night', JSON.stringify(resumeInfo));
 
-    const histInfo = await ev('(()=>{const h=readHistory();return {len:h.length, first: h[0] ? {winner:h[0].winner, n:h[0].n, round:h[0].round, players:(h[0].players||[]).length} : null};})()');
-    check('S10 บันทึกผลเกมที่จบลงประวัติ',
-      histInfo.len >= 1 && histInfo.first && histInfo.first.players > 0 && ['village','werewolf','lovers','fool'].includes(histInfo.first.winner),
-      JSON.stringify(histInfo));
+    const histInfo = await ev(
+      '(()=>{const h=readHistory();return {len:h.length, first: h[0] ? {winner:h[0].winner, n:h[0].n, round:h[0].round, players:(h[0].players||[]).length} : null};})()'
+    );
+    check(
+      'S10 บันทึกผลเกมที่จบลงประวัติ',
+      histInfo.len >= 1 && histInfo.first && histInfo.first.players > 0 && ['village', 'werewolf', 'lovers', 'fool'].includes(histInfo.first.winner),
+      JSON.stringify(histInfo)
+    );
 
-    const histTest = await ev(`(() => {
+    const histTest =
+      (await ev(`(() => {
       const real = readHistory();
       const dummies = [];
       for(let i=0;i<15;i++) dummies.push({ts:Date.now()+i, n:8, round:3, winner:'village', reason:'ทดสอบ', players:[]});
@@ -580,17 +692,24 @@ async function main() {
       closeSheet();
       writeHistory(real);
       return {len, sheetOk: !!sheet, showsDummy: txt.includes('ทดสอบ'), restored: readHistory().length === real.length};
-    })()`) || {};
-    check('S10 ประวัติเก็บสูงสุด 10 เกม + เปิดดูได้',
+    })()`)) || {};
+    check(
+      'S10 ประวัติเก็บสูงสุด 10 เกม + เปิดดูได้',
       histTest.len === 10 && histTest.sheetOk === true && histTest.showsDummy === true && histTest.restored === true,
-      JSON.stringify(histTest));
+      JSON.stringify(histTest)
+    );
 
     await ev('goHome()');
     const homeUi = await ev('document.getElementById("app").innerText');
-    check('S10 หน้าแรกแสดงตัวเลือกช่อง + ปุ่มผลย้อนหลัง', homeUi.includes('ช่อง 1') && homeUi.includes('ผลย้อนหลัง'), homeUi.slice(0, 200).replace(/\n/g, ' | '));
+    check(
+      'S10 หน้าแรกแสดงตัวเลือกช่อง + ปุ่มผลย้อนหลัง',
+      homeUi.includes('ช่อง 1') && homeUi.includes('ผลย้อนหลัง'),
+      homeUi.slice(0, 200).replace(/\n/g, ' | ')
+    );
 
     /* ===== S12: error boundary ===== */
-    const errInfo = await ev(`(() => {
+    const errInfo =
+      (await ev(`(() => {
       let logged = 0;
       const origCE = console.error;
       console.error = function(){ logged++; try{ return origCE.apply(console, arguments); }catch(e){} };
@@ -608,15 +727,99 @@ async function main() {
       recoverHome();
       const after = document.getElementById('app').innerText;
       return {shown, detail, notBlank, logged, recovered: after.includes('คืนหอนหลอนหมาป่า'), screen: S.screen, errorCleared: !lastRenderError};
-    })()`) || {};
-    check('S12 error boundary: render พัง → หน้าข้อผิดพลาดแทนหน้าขาว',
-      errInfo.shown === true && errInfo.detail === true && errInfo.notBlank === true, JSON.stringify(errInfo));
-    check('S12 กู้คืนกลับหน้าแรกได้ + log error ออก console',
+    })()`)) || {};
+    check(
+      'S12 error boundary: render พัง → หน้าข้อผิดพลาดแทนหน้าขาว',
+      errInfo.shown === true && errInfo.detail === true && errInfo.notBlank === true,
+      JSON.stringify(errInfo)
+    );
+    check(
+      'S12 กู้คืนกลับหน้าแรกได้ + log error ออก console',
       errInfo.recovered === true && errInfo.screen === 'home' && errInfo.errorCleared === true && errInfo.logged >= 1,
-      JSON.stringify(errInfo));
+      JSON.stringify(errInfo)
+    );
+
+    /* ===== S13: save schema migration + เตือนตอนบันทึกไม่สำเร็จ ===== */
+    const migInfo =
+      (await ev(`(() => {
+      const raw = JSON.stringify({
+        screen: 'night',
+        setup: {roles: {werewolf: 1}},
+        ui: {votes: [{voterId: 1, targetId: 2}]},
+        g: {round: 2, players: [{id: 1, name: 'A', roleId: 'seer', alive: true}]},
+        ver: '9.6'
+      });
+      const m = migrateSave(JSON.parse(raw));
+      const res = {
+        stamped: m.schema === SAVE_SCHEMA,
+        seerDefaulted: m.setup.roles.seer === 0,
+        votesNormalized: Array.isArray(m.ui.votes) && m.ui.votes[0].skip === false,
+        hasLog: Array.isArray(m.g.log),
+        hasNight: !!m.g.night,
+        wolfCubDead: m.g.wolfCubDead === false
+      };
+      localStorage.setItem(slotKeyFor(1), raw);
+      res.loadOk = load(false) === true;
+      res.screen = S.screen;
+      S.g = null;
+      S.ui = newUI();
+      S.screen = 'home';
+      return res;
+    })()`)) || {};
+    check(
+      'S13 save schema เก่า (ไม่มี field) → migrateSave เติมครบ + ประทับ SAVE_SCHEMA',
+      migInfo.stamped === true &&
+        migInfo.seerDefaulted === true &&
+        migInfo.votesNormalized === true &&
+        migInfo.hasLog === true &&
+        migInfo.hasNight === true &&
+        migInfo.wolfCubDead === true,
+      JSON.stringify(migInfo)
+    );
+    check('S13 โหลด save เก่าผ่าน load() ได้จริง', migInfo.loadOk === true, JSON.stringify(migInfo));
+
+    const sfInfo =
+      (await ev(`(() => {
+      const origSet = Storage.prototype.setItem;
+      SAVE_WARNED = false;
+      SAVE_ERR = null;
+      window.__origSD = window.showDialog;
+      window.__saveDlg = 0;
+      window.showDialog = function(o){ window.__saveDlg++; return window.__origSD(o); };
+      let ok1 = null, ok2 = null;
+      try {
+        Storage.prototype.setItem = function(){
+          const e = new Error('quota exceeded');
+          e.name = 'QuotaExceededError';
+          e.code = 22;
+          throw e;
+        };
+        ok1 = save();
+        ok2 = save();
+      } finally {
+        Storage.prototype.setItem = origSet;
+      }
+      return {ok1, ok2, warned: SAVE_WARNED, errSet: SAVE_ERR !== null};
+    })()`)) || {};
+    await waitFor('!!document.getElementById("dialogOverlay")', 'save-fail dialog', 5000);
+    const dlgInfo =
+      (await ev(`(() => {
+      const ov = document.getElementById('dialogOverlay');
+      const out = {txt: ov ? ov.innerText : '', count: window.__saveDlg};
+      if (window.__origSD) window.showDialog = window.__origSD;
+      return out;
+    })()`)) || {};
+    check(
+      'S13 บันทึกไม่สำเร็จ → save() คืน false + จำสาเหตุไว้ (SAVE_ERR)',
+      sfInfo.ok1 === false && sfInfo.ok2 === false && sfInfo.errSet === true && sfInfo.warned === true,
+      JSON.stringify(sfInfo)
+    );
+    check('S13 แจ้งเตือนผู้ใช้ด้วย dialog และไม่ spam ซ้ำ', dlgInfo.txt.includes('บันทึกไม่สำเร็จ') && dlgInfo.count === 1, JSON.stringify(dlgInfo));
+    await ev('closeDialog()');
+    check('S13 ปิด dialog เตือนได้', await ev('!document.getElementById("dialogOverlay")'));
 
     /* ===== report ===== */
-    const failed = results.filter((r) => !r.ok);
+    const failed = results.filter(r => !r.ok);
     console.log('\n========================================');
     console.log(`ผลทดสอบ: ${results.length - failed.length}/${results.length} ผ่าน`);
     if (dialogs.length) console.log(`dialogs ที่เจอ: ${dialogs.length}`);

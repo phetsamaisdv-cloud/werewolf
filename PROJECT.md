@@ -1,6 +1,6 @@
 # โปรเจค: คืนหอนหลอนหมาป่า (Werewolf Moderator App)
 
-> สถานะโปรเจค ณ วันที่ 25 ก.ย. 2026 · เวอร์ชัน `10.0` (`VER` ใน `index.html:474`)
+> สถานะโปรเจค ณ วันที่ 25 ก.ย. 2026 · เวอร์ชัน `10.0` (`VER` ใน `app.js`)
 > เอกสารนี้สรุปว่า **ตอนนี้มีอะไรบ้าง / ทำอะไรไปแล้วบ้าง / ยังไม่ได้ทำอะไร / ควรทำอะไรต่อ**
 
 ---
@@ -19,31 +19,35 @@
 
 ## 2. โครงสร้างไฟล์ปัจจุบัน
 
-| ไฟล์ | ขนาด | สถานะ |
-|---|---|---|
-| `index.html` | ~1.7 KB | ✅ shell อย่างเดียว (โหลด styles.css + app.js + manifest) |
-| `styles.css` | ~23 KB | ✅ ธีม dark/light, การ์ด, ปุ่ม, แอนิเมชัน, responsive |
-| `app.js` | ~110 KB | ✅ ตรรกะเกมทั้งหมด (แยกมาจากเดิมเมื่อ 25 ก.ย. 2026) — เวอร์ชัน **10.0** (SAVE_KEY `werewolf_v9`) |
-| `manifest.json` | 1 KB | ✅ PWA manifest (ชื่อ, scope, ไอคอน 5 แบบ) |
-| `sw.js` | ~4 KB | ✅ Service Worker v1.7.0 — network-first + cache fallback + self-heal (กัน `ERR_FAILED`) |
-| `icon.svg` + `icons/*.png` | 6 ไฟล์ | ✅ ไอคอน 180/192/512 + maskable |
-| `TESTING.md` | — | ✅ Smoke test checklist (manual) |
-| `test/smoke.mjs` | — | ✅ E2E test อัตโนมัติ 51 checks (`npm test`) |
-| `test/serve.mjs` | — | ✅ dev server (`npm run serve`) |
-| `package.json` | — | ✅ scripts: `test`, `serve` (ไม่มี dependency) |
-| `PROJECT.md` | — | 📄 เอกสารสถานะโปรเจค (ไฟล์นี้) |
-| `.gitignore` | — | ✅ (`node_modules/`, `.wrangler/`, `dist/` ถูก ignore) |
-| `wrangler.jsonc` | — | ✅ config deploy ขึ้น Cloudflare Workers (assets = repo root) |
-| `.assetsignore` | — | ✅ กัน `node_modules` (workerd 127MB) ไม่ให้อัป — **บังคับมีไม่งั้น deploy พัง** |
-| `archive/InDexBlackUp.v9.6.html` | 136 KB | 🗄️ backup เวอร์ชันเก่า **9.6** (ย้ายออกจาก root แล้ว) |
+| ไฟล์                                                   | ขนาด    | สถานะ                                                                                                                                  |
+| ------------------------------------------------------ | ------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `index.html`                                           | ~1.8 KB | ✅ shell อย่างเดียว (โหลด styles.css + app.js + manifest)                                                                              |
+| `styles.css`                                           | ~28 KB  | ✅ ธีม dark/light, การ์ด, ปุ่ม, แอนิเมชัน, responsive                                                                                  |
+| `app.js`                                               | ~136 KB | ✅ ตรรกะเกมทั้งหมด (แยกมาจากเดิมเมื่อ 25 ก.ย. 2026) — เวอร์ชัน **10.0** (`SAVE_KEY` `werewolf_v9`, `SAVE_SCHEMA` 1)                    |
+| `manifest.json`                                        | 1 KB    | ✅ PWA manifest (ชื่อ, scope, ไอคอน 5 แบบ)                                                                                             |
+| `sw.js`                                                | ~7 KB   | ✅ Service Worker v1.7.0 — network-first + cache fallback + self-heal (กัน `ERR_FAILED`)                                               |
+| `icon.svg` + `icons/*.png`                             | 6 ไฟล์  | ✅ ไอคอน 180/192/512 + maskable                                                                                                        |
+| `TESTING.md`                                           | —       | ✅ Smoke test checklist (manual)                                                                                                       |
+| `test/smoke.mjs`                                       | —       | ✅ E2E test อัตโนมัติ 56 checks (`npm test`)                                                                                           |
+| `test/serve.mjs`                                       | —       | ✅ dev server (`npm run serve`)                                                                                                        |
+| `package.json`                                         | —       | ✅ scripts: `test`, `serve`, `check`, `lint`, `format`, `deploy`, `preview` — runtime ไม่มี dependency (devDeps แค่ ESLint + Prettier) |
+| `eslint.config.js` / `.prettierrc` / `.prettierignore` | —       | ✅ lint + format (`npm run check`)                                                                                                     |
+| `README.md`                                            | —       | ✅ เอกสารเริ่มต้นใช้งาน                                                                                                                |
+| `PROJECT.md`                                           | —       | 📄 เอกสารสถานะโปรเจค (ไฟล์นี้)                                                                                                         |
+| `.gitignore`                                           | —       | ✅ (`node_modules/`, `.wrangler/`, `dist/` ถูก ignore)                                                                                 |
+| `wrangler.jsonc`                                       | —       | ✅ config deploy ขึ้น Cloudflare Workers (assets = repo root)                                                                          |
+| `schemas/wrangler-config-schema.json`                  | 356 KB  | ✅ schema ของ `wrangler.jsonc` ฝังใน repo (กัน VS Code บล็อก `$schema` จาก CDN) — อยู่ใน `.assetsignore` ไม่อัปขึ้น Workers            |
+| `.assetsignore`                                        | —       | ✅ กัน `node_modules` (workerd 127MB) ไม่ให้อัป — **บังคับมีไม่งั้น deploy พัง**                                                       |
+| `archive/InDexBlackUp.v9.6.html`                       | 136 KB  | 🗄️ backup เวอร์ชันเก่า **9.6** (ย้ายออกจาก root แล้ว)                                                                                  |
 
 **สถานะ Git:** มี repository แล้ว (`main`) — commit baseline เป็น commit แรก, การเปลี่ยนแปลงทุกอย่างต้องผ่าน commit
-**ยังไม่มี:** build tool, ESLint/Prettier, unit test (เฉพาะ E2E) · `README.md` มีแค่บรรทัดเดียว
+**ยังไม่มี:** build tool, unit test (มีแค่ E2E) · **มีแล้ว:** ESLint + Prettier (`npm run check`) · `README.md` เขียนครบแล้ว
 
 **Deploy:** Cloudflare Workers (static assets) — `npx wrangler deploy` (มี script `npm run deploy` / `npm run preview`)
+
 - config อยู่ใน `wrangler.jsonc` (`assets.directory: "."`) + `.assetsignore` ตัดไฟล์ development ออก
 - ⚠️ ห้ามลบ `.assetsignore` — `node_modules/workerd` (~127MB) เกินโควตา 25MB ของ Workers แล้ว build จะพัง (ทดสอบแล้ว)
-- เส้นทาง: push → Cloudflare build (`bun install` ไม่มี dependency) → `npx wrangler deploy`
+- เส้นทาง: push → Cloudflare build (`bun install` มีแค่ devDependencies) → `npx wrangler deploy`
 
 โครงสร้างภายใน `app.js` (แบ่งด้วย comment `/* ===== ... ===== */`):
 
@@ -79,18 +83,22 @@ BOOT        load → applyTheme → render → ลงทะเบียน servi
 ## 3. สิ่งที่ทำเสร็จแล้ว (Done)
 
 ### 3.1 หน้าจอครบทุกเฟสของเกม (13 screens)
+
 `home → setup → assign → reveal → night → dawn → hunter → day → voting → tie → execution → prince → end`
+
 - ทุกเฟสมี header ธีม (`Dawn Phase` / `Day Phase` etc.) + แสดง "วันที่ X"
 - ปุ่ม "‹ ย้อนกลับ/ออก" ที่ topbar ตาม context (`uxTopbar` ใน `app.js`)
 
 ### 3.2 บทบาทครบ 15 บท (`ROLES` ใน `app.js`)
-| ฝ่าย | บทบาท |
-|---|---|
-| 🐺 หมาป่า | หมาป่า, ลูกหมาป่า |
+
+| ฝ่าย       | บทบาท                                                                                                                 |
+| ---------- | --------------------------------------------------------------------------------------------------------------------- |
+| 🐺 หมาป่า  | หมาป่า, ลูกหมาป่า                                                                                                     |
 | 👥 ชาวบ้าน | ผู้หยั่งรู้, แม่มด, นายพราน, หมอ, บอดี้การ์ด, คิวปิด, นายอำเภอ, ผู้ต้องสาป, ผู้ป่วยติดเชื้อ, เจ้าชาย, ยายแก่, ชาวบ้าน |
-| 🃏 กลาง | คนโง่ |
+| 🃏 กลาง    | คนโง่                                                                                                                 |
 
 ครบทุกเอฟเฟกต์:
+
 - **ลูกหมาป่า** — ตายแล้วคืนถัดไปหมาป่าฆ่า 2 คน (`markWolfCubDead`, bonus ใน `goToNight`)
 - **ผู้ต้องสาป** — ถูกกัดแล้วกลายเป็นหมาป่า (แจ้งลับตอนรุ่งเช้า)
 - **ผู้ป่วยติดเชื้อ** — โดนกัดแล้วเหยื่อทั้งหมดรอดในคืนถัดไป (`isWolvesInfectedThisRound`)
@@ -103,6 +111,7 @@ BOOT        load → applyTheme → render → ลงทะเบียน servi
 - **นายพราน** — ยิงตอนตาย (เลือกยิง/ไม่ยิง) + หน้า `hunter` แยก
 
 ### 3.3 ระบบกลางคืน (Night Flow)
+
 - เรียกบทบาททีละคนตามที่ยังมีชีวิต (`activeNRoles`) + **แนะนำลำดับ** (`renderNightPanel`)
 - เปอร์เซ็นต์ความคืบหน้าของคืนนั้น
 - โหมาป่า 2 เป้าหมาย (เมื่อเงื่อนไขเข้า) + เลือกเป้าหมายเสริมตอนลูกหมาป่าตาย
@@ -111,6 +120,7 @@ BOOT        load → applyTheme → render → ลงทะเบียน servi
 - บันทึกผลตรวจ Seer ลง `seerChecks` + log ทุกเหตุการณ์ (`addLog`)
 
 ### 3.4 ระบบกลางวันและการโหวต
+
 - หน้าอภิปรายพร้อมจับเวลา
 - โหวตทีละคน (เลือกคนโหวต → เลือกเป้าหมาย), ปุ่ม **ข้าม**, **Undo รายคน**, **ล้างทั้งหมด**
 - สรุปคะแนน + แจ้งรายชื่อคนยังไม่โหวต
@@ -119,6 +129,7 @@ BOOT        load → applyTheme → render → ลงทะเบียน servi
 - ตรวจแพ้-ชนะทุกจุดเปลี่ยนเฟส (`checkWin` ถูกเรียกจาก dawn/execution/prince/voting)
 
 ### 3.5 ระบบชนะ (Win conditions)
+
 - หมาป่าตายหมด → ชาวบ้านชนะ
 - หมาป่า ≥ ชาวบ้าน → หมาป่าชนะ
 - คู่รักต่างฝ่ายเหลือ 2 คนสุดท้าย → คู่รักชนะ
@@ -126,6 +137,7 @@ BOOT        load → applyTheme → render → ลงทะเบียน servi
 - หน้าจบเกม: ตารางเปิดบทบาททั้งหมด + **คัดลอกผลลัพธ์** (`copyResults` + `fallbackCopy`) + ดูประวัติ + เล่นใหม่
 
 ### 3.6 UX / ระบบช่วยเหลือ
+
 - **บันทึกเกมอัตโนมัติ** ทุกครั้งที่ state เปลี่ยน → "เล่นเกมต่อ" ได้จากหน้าแรก + แสดงเฟส/วันที่/จำนวนคนที่ค้างอยู่ (`getSaveInfo`)
 - **ธีม** Dark / Light / Auto + **ขนาดตัวอักษร** 3 ระดับ + **ปลดล็อกหน้าจอค้าง** (Wake Lock API) + **สั่นแจ้งเตือน** (Vibration API)
 - **จับเวลา** พร้อม beep + presets + แสดง pill บน topbar + bottom bar
@@ -137,34 +149,37 @@ BOOT        load → applyTheme → render → ลงทะเบียน servi
 - Favicon + apple-touch-icon เป็น SVG inline, meta สำหรับ iOS PWA-capable, `viewport-fit=cover` + safe-area
 
 ### 3.7 สิ่งที่เพิ่มในรอบ P1 (25 ก.ย. 2026)
+
 - **แยกไฟล์** — `index.html` (shell 1.7KB) + `styles.css` + `app.js` + `sw.js` v1.7.0
 - **Dialog กลางจอ** แทน `confirm()`/`alert()`/`prompt()` หมดทุกจุด (`showDialog`/`askConfirm`/`askAlert`)
 - **Preset ชุดบทบาท** — มาตรฐาน/Party/Competitive (4-18 คน) + ชิปจำนวนผู้เล่น + บันทึกชุดเอง (`werewolf_presets`)
 - **3 ช่องบันทึกเกม** (`werewolf_v9`, `_s2`, `_s3`) สลับจากหน้าแรก + resume ต่อเนื่อง + **ประวัติ 10 เกมล่าสุด** (`werewolf_history`)
 - **เสียงแจ้งเตือน** 4 แบบ (Web Audio oscillator) + toggle ในตั้งค่า
 - **Error boundary** — `render()` มี try/catch → หน้าข้อผิดพลาดพร้อมปุ่มกู้คืน
-- **E2E test 51 checks** (`npm test`, ไม่มี dependency)
+- **E2E test 56 checks** (`npm test`, test เองไม่มี dependency)
 
 ---
 
 ## 4. สิ่งที่ยังไม่ได้ทำ / จุดที่ยังขาด (Not Done / Known Gaps)
 
 ### 4.1 โครงสร้างและวิศวกรรม (Engineering)
-- ✅ **Version Control** — มี git repo แล้ว (branch `main`, commit baseline แล้ว) — *ทำเสร็จในรอบ P0*
-- 🟡 **ไม่มี lint / format** — มี `package.json` (scripts: `test`, `serve`) แล้ว แต่ยังไม่มี ESLint/Prettier
-- ✅ **Test อัตโนมัติ (E2E)** — `test/smoke.mjs` (Node + Chrome DevTools Protocol, 51 checks, ไม่มี dependency) รันด้วย `npm test` — *ทำเสร็จในรอบ P1*
+
+- ✅ **Version Control** — มี git repo แล้ว (branch `main`, commit baseline แล้ว) — _ทำเสร็จในรอบ P0_
+- ✅ **Lint + format** — ESLint 10 (flat config) + Prettier 3 เป็น devDependencies, `npm run check` รัน `eslint .` + `prettier --check .` (โค้ดที่ deploy ยังไม่มี dependency) — _ทำเสร็จแล้ว_
+- ✅ **Test อัตโนมัติ (E2E)** — `test/smoke.mjs` (Node + Chrome DevTools Protocol, 56 checks, test เองไม่มี dependency) รันด้วย `npm test` — _ทำเสร็จในรอบ P1_
 - ⬜ **Test manual ครบทุกข้อ** — ยังต้องเดิน `TESTING.md` ด้วยมือบนมือถือจริงก่อนปล่อย
-- 🟡 **แยกไฟล์แล้วแต่ยังไม่ modular** — `index.html` + `styles.css` (~24KB) + `app.js` (~120KB) ยังเป็นไฟล์เดียวต่อหนึ่ง concern แก้ส่วนหนึ่งอาจพังส่วนอื่น (มี E2E กัน)
+- 🟡 **แยกไฟล์แล้วแต่ยังไม่ modular** — `index.html` + `styles.css` (~28KB) + `app.js` (~136KB) ยังเป็นไฟล์เดียวต่อหนึ่ง concern แก้ส่วนหนึ่งอาจพังส่วนอื่น (มี E2E กัน)
 - ❌ **ใช้ global functions + `onclick` inline ทั้งหมด** — ยากต่อการ refactor/ติดบั๊ก, ไม่มี module
-- ✅ **Error boundary** — `render()` มี try/catch → หน้าข้อผิดพลาด + ปุ่มกู้คืน แทนหน้าขาว — *ทำเสร็จในรอบ P1*
-- ✅ **Backup file ถูกย้ายแล้ว** — `InDexBlackUp.html` → `archive/InDexBlackUp.v9.6.html` — *ทำเสร็จในรอบ P0*
-- ❌ **ไม่มี README / CHANGELOG / LICENSE** — คนอื่นเปิดมาไม่รู้ต้องทำอะไร
+- ✅ **Error boundary** — `render()` มี try/catch → หน้าข้อผิดพลาด + ปุ่มกู้คืน แทนหน้าขาว — _ทำเสร็จในรอบ P1_
+- ✅ **Backup file ถูกย้ายแล้ว** — `InDexBlackUp.html` → `archive/InDexBlackUp.v9.6.html` — _ทำเสร็จในรอบ P0_
+- 🟡 **README มีแล้ว แต่ยังไม่มี CHANGELOG / LICENSE** — คนอื่นเปิดมาเริ่มได้จาก `README.md` แล้ว
 
 ### 4.2 ฟีเจอร์ที่ยังไม่มี (Feature gaps)
-- ✅ **PWA** — มี `manifest.json` + `sw.js` (cache-first + background revalidate) → ใช้ออฟไลน์/เพิ่มลงหน้าจอหลักได้แล้ว — *ทำเสร็จในรอบ P0* (เหลือทดสอบบนมือถือจริงตาม `TESTING.md` §7)
+
+- ✅ **PWA** — มี `manifest.json` + `sw.js` (cache-first + background revalidate) → ใช้ออฟไลน์/เพิ่มลงหน้าจอหลักได้แล้ว — _ทำเสร็จในรอบ P0_ (เหลือทดสอบบนมือถือจริงตาม `TESTING.md` §7)
 - 🟡 **เสียงแจ้งเตือนมี 4 แพทเทิร์นแล้ว** (หมดเวลา/จบกลางคืน/ผลโหวต/เกมจบ) — ยังไม่มีเสียงธีม (เสียงหอน, กลอง) และเสียงตอนรุ่งเช้า
-- ❌ **ไม่มี Preset สำหรับจำนวนผู้เล่น/ชุดบทบาท** — ต้องตั้งเองใหม่ทุกเกม (เช่น "8 คน มาตรฐาน", "12 คน แข่งขัน")
-- ❌ **บันทึกได้แค่ 1 เกม** — ทับกันเกมเดียว ไม่มีหลาย slot หรือ history เกมย้อนหลัง
+- ✅ **Preset ชุดบทบาท** — มาตรฐาน/Party/Competitive + บันทึกชุดเองแล้ว — _ทำเสร็จในรอบ P1 (P1 #7)_
+- ✅ **บันทึกหลายเกม + ประวัติย้อนหลัง** — 3 ช่อง + ประวัติ 10 เกมล่าสุดแล้ว — _ทำเสร็จในรอบ P1 (P1 #8)_
 - ❌ **ไม่มี export/import ข้อมูล** (JSON) ย้ายเครื่อง/แชร์ preset ไม่ได้
 - ❌ **ไม่มีแชร์ผลเกมเป็นรูปภาพ (image card)** — ตอนนี้คัดลอกเป็นข้อความล้วน
 - ❌ **ไม่มีโหมดผู้เล่นหลายคน / QR / แชร์หน้าจอ** — คงยาก แต่เป็นทางเลือกในอนาคต
@@ -174,9 +189,10 @@ BOOT        load → applyTheme → render → ลงทะเบียน servi
 - ❌ **Accessibility จำกัด** — `user-select:none` ทั้งหน้า, ไม่มี ARIA, contrast บางธีม, ไม่มีโหมดมือซ้าย/ปุ่มใหญ่พิเศษ
 
 ### 4.3 จุดที่ควรระวัง / อาจเป็นบั๊ก (ต้องตรวจสอบ)
+
 - ✅ ~~ใช้ `confirm()` / `alert()` ดั้งเดิม~~ — แทนที่หมดแล้ว 12 จุดใน `app.js` ด้วย dialog ของแอปเอง (P1 #6)
 - ⚠️ `checkWin` ไม่ครอบคลุมเคส "หมาป่าตายหมดเพราะลูกหมาป่าตายพร้อมกัน" / เสมอฝ่ายกลาง — ควรทดสอบรอบ edge case
-- ⚠️ `localStorage` อาจเต็ม/ถูกบล็อกใน Safari private mode — `save()` มี try/catch แต่ user ไม่ทราบว่าบันทึกไม่สำเร็จ
+- ✅ ~~`localStorage` เต็ม/ถูกบล็อกใน Safari private mode แล้ว user ไม่รู้~~ — `save()` คืนค่า + เตือนครั้งเดียวตอนเกิด (`warnSaveFailed`) + แสดง `⚠️ บันทึกไม่สำเร็จ` ที่หน้าแรก
 - ⚠️ Wake Lock ต้องขอใหม่ทุกครั้งที่ tab สลับ (`visibilitychange`) — ตรวจแล้วมี แต่ถ้า browser ไม่รองรับจะนิ่งเงียบ
 - ⚠️ ไม่มีการ lock หน้าจอระหว่างเปิด Moderator Panel — ถ้าผู้เล่นเหลือบมองเห็นบทบาทหมด
 
@@ -187,6 +203,7 @@ BOOT        load → applyTheme → render → ลงทะเบียน servi
 จัดลำดับตามความคุ้มค่า/ความเสี่ยง:
 
 ### 🔴 P0 — ต้องทำก่อน (กันงานพัง) — ✅ ทำเสร็จแล้ว (25 ก.ย. 2026)
+
 1. **เริ่ม Git + commit ของที่มีอยู่** — ✅ `git init` (branch `main`) + `.gitignore` + commit baseline `acd3998`
 2. **ย้าย `InDexBlackUp.html`** — ✅ ย้ายไป `archive/InDexBlackUp.v9.6.html` (ประวัติเก่าอยู่ใน git แล้ว)
 3. **เพิ่ม PWA** — ✅
@@ -198,36 +215,39 @@ BOOT        load → applyTheme → render → ลงทะเบียน servi
 4. **Smoke test checklist** — ✅ เขียน `TESTING.md` ครบทั้ง 8 หัวข้อ (ตั้งค่า/กลางคืน/รุ่งเช้า/โหวต/เคสชนะ/save/PWA/UX) — **ยังไม่ได้เดิน test จริงทุกข้อ ต้องทำก่อนปล่อย**
 
 ### 🟡 P1 — คุณภาพชีวิต + ลดบั๊ก — ✅ ทำเสร็จแล้วทุกข้อ (25 ก.ย. 2026)
-5. ✅ **แยกไฟล์** → `index.html` (shell 1.7KB) + `styles.css` + `app.js` — *ทำเสร็จแล้ว* (มี E2E test ยืนยัน 51/51 + ทดสอบออฟไลน์ผ่าน)
-6. ✅ **แทนที่ `confirm()`/`alert()` ทั้งหมด** — *ทำเสร็จแล้ว*: เพิ่ม `showDialog()/askConfirm()/askAlert()` (overlay `#dialogOverlay`, รองรับ Enter/Esc, backdrop click, `danger`/`single` mode) แทน native 12 จุด (`clearSave`, `continueGame`, `confirmLeaveGame`, `resetAssign`, `endNight`, `confirmSkipVote`, `resetVotes`, `finishVoting`, `modStart`, `copyResults`, `fallbackCopy`) — **E2E 51/51 ผ่าน** (`sw.js` bump เป็น v1.6.0)
-7. ✅ **เพิ่ม Preset ชุดบทบาท** — *ทำเสร็จแล้ว*: การ์ด "⚡ Preset ชุดบทบาท" ในหน้าตั้งค่า — 3 ชุดพร้อมใช้ (`⚖️ มาตรฐาน` / `🎉 Party` / `🏆 Competitive` สร้างตามจำนวนผู้เล่น 4-18 คน ผ่าน `canStart()` + ไม่มี ⚠ ทุกขนาด) + ชิปจำนวนผู้เล่น 4/6/8/10/12/14/16 คน (โหลดชุดมาตรฐานให้) + **บันทึก/โหลด/ลบชุดเอง** เก็บใน `localStorage` key `werewolf_presets` (สูงสุด 10 ชุด, ลบมี dialog ยืนยัน) — **E2E 51/51 ผ่าน**
-8. ✅ **หลาย slot บันทึกเกม + ประวัติย้อนหลัง** — *ทำเสร็จแล้ว*: 3 ช่องบันทึก (`werewolf_v9`, `_s2`, `_s3`) สลับได้จากหน้าแรก (ชิป "ช่อง 1/2/3" + สถานะ มีเกม/จบแล้ว/ว่าง, เก็บช่อง active ใน `werewolf_slot_idx`, ช่อง 1 ใช้คีย์เดิม → ของเก่าไม่หาย) · สลับช่องแล้ว "เล่นต่อ" resume กลับเฟสเดิมได้ · **ปุ่ม "📖 ผลย้อนหลัง"** เก็บเกมที่จบ 10 เกมล่าสุด (`werewolf_history`: ผู้ชนะ/รอบ/ชื่อ+บทบาททุกคน, ผู้ตายขีดฆ่า) — **E2E 51/51 ผ่าน**
-9. ✅ **เพิ่มเสียงแจ้งเตือน** — *ทำเสร็จแล้ว*: `beep(kind)` สร้างจาก Web Audio oscillator (AudioContext อินส턴ซ์เดียว, 4 แพทเทิร์น: `timeup` หมดเวลา / `night` จบกลางคืน / `vote` ประกาศผลโหวต / `win` เกมจบ) + toggle "🔔 เสียงแจ้งเตือน" ในหน้าตั้งค่า (`S.setup.sound`, ปิดแล้วเงียบ) — **E2E 51/51 ผ่าน**
-10. ✅ **Error boundary** — *ทำเสร็จแล้ว*: `render()` ครอบด้วย try/catch + guard กันเรียกซ้ำ → หน้า "⚠️ เกิดข้อผิดพลาด" พร้อมข้อความ error, ปุ่ม "🔄 ลองใหม่" / "🏠 กลับหน้าแรก" (ล้มเหลวอีก → reload) แทนหน้าขาว, log ด้วย `console.error` — **E2E 51/51 ผ่าน**
+
+5. ✅ **แยกไฟล์** → `index.html` (shell 1.7KB) + `styles.css` + `app.js` — _ทำเสร็จแล้ว_ (มี E2E test ยืนยัน 56/56 + ทดสอบออฟไลน์ผ่าน)
+6. ✅ **แทนที่ `confirm()`/`alert()` ทั้งหมด** — _ทำเสร็จแล้ว_: เพิ่ม `showDialog()/askConfirm()/askAlert()` (overlay `#dialogOverlay`, รองรับ Enter/Esc, backdrop click, `danger`/`single` mode) แทน native 12 จุด (`clearSave`, `continueGame`, `confirmLeaveGame`, `resetAssign`, `endNight`, `confirmSkipVote`, `resetVotes`, `finishVoting`, `modStart`, `copyResults`, `fallbackCopy`) — **E2E 51/51 ผ่าน** (`sw.js` bump เป็น v1.6.0)
+7. ✅ **เพิ่ม Preset ชุดบทบาท** — _ทำเสร็จแล้ว_: การ์ด "⚡ Preset ชุดบทบาท" ในหน้าตั้งค่า — 3 ชุดพร้อมใช้ (`⚖️ มาตรฐาน` / `🎉 Party` / `🏆 Competitive` สร้างตามจำนวนผู้เล่น 4-18 คน ผ่าน `canStart()` + ไม่มี ⚠ ทุกขนาด) + ชิปจำนวนผู้เล่น 4/6/8/10/12/14/16 คน (โหลดชุดมาตรฐานให้) + **บันทึก/โหลด/ลบชุดเอง** เก็บใน `localStorage` key `werewolf_presets` (สูงสุด 10 ชุด, ลบมี dialog ยืนยัน) — **E2E 51/51 ผ่าน**
+8. ✅ **หลาย slot บันทึกเกม + ประวัติย้อนหลัง** — _ทำเสร็จแล้ว_: 3 ช่องบันทึก (`werewolf_v9`, `_s2`, `_s3`) สลับได้จากหน้าแรก (ชิป "ช่อง 1/2/3" + สถานะ มีเกม/จบแล้ว/ว่าง, เก็บช่อง active ใน `werewolf_slot_idx`, ช่อง 1 ใช้คีย์เดิม → ของเก่าไม่หาย) · สลับช่องแล้ว "เล่นต่อ" resume กลับเฟสเดิมได้ · **ปุ่ม "📖 ผลย้อนหลัง"** เก็บเกมที่จบ 10 เกมล่าสุด (`werewolf_history`: ผู้ชนะ/รอบ/ชื่อ+บทบาททุกคน, ผู้ตายขีดฆ่า) — **E2E 51/51 ผ่าน**
+9. ✅ **เพิ่มเสียงแจ้งเตือน** — _ทำเสร็จแล้ว_: `beep(kind)` สร้างจาก Web Audio oscillator (AudioContext อินส턴ซ์เดียว, 4 แพทเทิร์น: `timeup` หมดเวลา / `night` จบกลางคืน / `vote` ประกาศผลโหวต / `win` เกมจบ) + toggle "🔔 เสียงแจ้งเตือน" ในหน้าตั้งค่า (`S.setup.sound`, ปิดแล้วเงียบ) — **E2E 51/51 ผ่าน**
+10. ✅ **Error boundary** — _ทำเสร็จแล้ว_: `render()` ครอบด้วย try/catch + guard กันเรียกซ้ำ → หน้า "⚠️ เกิดข้อผิดพลาด" พร้อมข้อความ error, ปุ่ม "🔄 ลองใหม่" / "🏠 กลับหน้าแรก" (ล้มเหลวอีก → reload) แทนหน้าขาว, log ด้วย `console.error` — **E2E 51/51 ผ่าน**
 
 ### 🟢 P2 — ปรับปรุง (เมื่อของหลักนิ่งแล้ว)
+
 11. **Unit test สำหรับ logic ล้วน** — ย้าย `checkWin`, `tally`, `endNight` resolution, `balanceWarnings` ออกมาเป็น module แล้วทดสอบด้วย Vitest/Node test
-12. **ESLint + Prettier** + script `npm run check`
+12. ✅ **ESLint + Prettier** + script `npm run check` — _ทำเสร็จแล้ว_ (ESLint 10 flat config, Prettier 3, devDependencies เท่านั้น)
 13. **แชร์ผลเกมเป็นรูปภาพ** (canvas render เป็นการ์ดผล + ดาวน์โหลด/แชร์ผ่าน Web Share API)
 14. **คู่มือบทบาทแบบเต็มในแอป** — หน้า "📖 บทบาททั้งหมด" อธิบายเงื่อนไขชนะ + interaction ข้ามบทบาท
 15. **Accessibility**: เพิ่ม ARIA, ปุ่มขนาดใหญ่พิเศษ, ทดสอบ contrast ธีม light
 16. **i18n (EN)** ถ้าต้องการขยายผู้ใช้
-17. **API/version migration** — ตอนนี้ `SAVE_KEY = 'werewolf_v9'` กับ `VER = '10.0'` ไม่ตรงกัน ควรตั้งให้สอดคล้อง + เขียน migration rule เมื่อ schema เปลี่ยน
+17. ✅ **Save schema / migration rule** — _ทำเสร็จแล้ว_: แยก 3 ตัวแปรให้หน้าที่ชัดเจน — `SAVE_KEY` (ชื่อคีย์, เปลี่ยนเฉพาะตอนล้างข้อมูลเก่า), `VER` (เวอร์ชันแอป = `package.json`), `SAVE_SCHEMA` (โครงสร้าง payload, +1 ทุกครั้งที่ shape เปลี่ยน) + ย้าย logic เติม field ตอนโหลดออกจาก `load()` ไปไว้ **`migrateSave()`** — กฎอยู่ใน `README.md`
 
 ---
 
 ## 6. สรุปสั้น ๆ
 
-| หัวข้อ | สถานะ |
-|---|---|
-| เล่นได้จริงครบทุกเฟสเกม | ✅ ครบ |
-| บทบาทครบ 15 + เอฟเฟกต์ครบ | ✅ ครบ |
-| Undo / History / Save-Resume | ✅ มี |
-| ธีม, จับเวลา, Wake Lock, Haptic | ✅ มี |
-| **P0: Git / archive / PWA / checklist** | ✅ **เสร็จแล้ว** |
-| Smoke test จริงครบทุกข้อใน `TESTING.md` | ⬜ ยังไม่ได้ทำ (แต่มี E2E 51/51 แทน) |
-| README / Tests / Lint | 🟡 มี README + E2E test แล้ว (ยังไม่มี lint) |
-| แยกไฟล์ / modular | ✅ `index.html` + `styles.css` + `app.js` |
-| แทน `confirm()`/`alert()` ด้วย dialog ของแอป | ✅ ทำเสร็จแล้ว |
-| preset / multi-slot / ประวัติเกม / เสียง | ✅ มีครบ |
-**ทำเสร็จแล้ว:** P0 ทั้ง 4 ข้อ + P1 #5 แยกไฟล์ + P1 #6 แทน `confirm()/alert()` + P1 #7 preset + P1 #8 multi-slot/ประวัติ + P1 ครบทั้ง 10 ข้อ → **ต่อไป:** เดิน `TESTING.md` ด้วยมือบนมือถือจริงก่อนปล่อย แล้วค่อยต่อ **P2** (unit test, lint, แชร์เป็นรูป, a11y)
+| หัวข้อ                                                                                                                                                                                                     | สถานะ                                     |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| เล่นได้จริงครบทุกเฟสเกม                                                                                                                                                                                    | ✅ ครบ                                    |
+| บทบาทครบ 15 + เอฟเฟกต์ครบ                                                                                                                                                                                  | ✅ ครบ                                    |
+| Undo / History / Save-Resume                                                                                                                                                                               | ✅ มี                                     |
+| ธีม, จับเวลา, Wake Lock, Haptic                                                                                                                                                                            | ✅ มี                                     |
+| **P0: Git / archive / PWA / checklist**                                                                                                                                                                    | ✅ **เสร็จแล้ว**                          |
+| Smoke test จริงครบทุกข้อใน `TESTING.md`                                                                                                                                                                    | ⬜ ยังไม่ได้ทำ (แต่มี E2E 56/56 แทน)      |
+| README / Tests / Lint                                                                                                                                                                                      | ✅ มีครบ                                  |
+| แยกไฟล์ / modular                                                                                                                                                                                          | ✅ `index.html` + `styles.css` + `app.js` |
+| แทน `confirm()`/`alert()` ด้วย dialog ของแอป                                                                                                                                                               | ✅ ทำเสร็จแล้ว                            |
+| preset / multi-slot / ประวัติเกม / เสียง                                                                                                                                                                   | ✅ มีครบ                                  |
+| เตือนตอนบันทึกไม่สำเร็จ + save schema / migration rule                                                                                                                                                     | ✅ ทำเสร็จแล้ว                            |
+| **ทำเสร็จแล้ว:** P0 ทั้ง 4 ข้อ + P1 ครบทั้ง 10 ข้อ + P2 #12 lint/format + P2 #17 save schema → **ต่อไป:** เดิน `TESTING.md` ด้วยมือบนมือถือจริงก่อนปล่อย แล้วค่อยต่อ **P2** (unit test, แชร์เป็นรูป, a11y) |

@@ -25,3 +25,6 @@ yarn.lock
 opencode.jsonc
 skills-lock.json
 schemas
+eslint.config.js
+.prettierrc
+.prettierignore

@@ -1,0 +1,10 @@
+node_modules
+.wrangler
+schemas
+.agents
+.opencode
+.vscode
+archive
+dist
+package-lock.json
+*.min.js

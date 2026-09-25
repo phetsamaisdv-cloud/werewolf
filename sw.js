@@ -26,7 +26,7 @@ const CORE_ASSETS = [
 
 async function safeMatch(request) {
   try {
-    const hit = await caches.match(request, { ignoreSearch: true });
+    const hit = await caches.match(request, {ignoreSearch: true});
     return hit || null;
   } catch (e) {
     return null;
@@ -47,10 +47,16 @@ function fetchWithTimeout(request, ms) {
   const timer = setTimeout(function () {
     if (ctrl) ctrl.abort();
   }, ms);
-  const opts = ctrl ? { signal: ctrl.signal } : {};
+  const opts = ctrl ? {signal: ctrl.signal} : {};
   return fetch(request, opts).then(
-    function (res) { clearTimeout(timer); return res; },
-    function (err) { clearTimeout(timer); throw err; }
+    function (res) {
+      clearTimeout(timer);
+      return res;
+    },
+    function (err) {
+      clearTimeout(timer);
+      throw err;
+    }
   );
 }
 
@@ -58,7 +64,7 @@ function offlineResponse() {
   return new Response('ออฟไลน์ — ไม่สามารถโหลดทรัพยากรได้', {
     status: 503,
     statusText: 'Service Unavailable',
-    headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' }
+    headers: {'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store'}
   });
 }
 
@@ -88,7 +94,7 @@ function repairPage() {
   return new Response(html, {
     status: 503,
     statusText: 'Service Unavailable',
-    headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' }
+    headers: {'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store'}
   });
 }
 
@@ -109,7 +115,9 @@ async function handleNavigation(request) {
   if (cached) {
     /* ดึงของใหม่เงียบ ๆ เผื่อเน็ต/เซิร์ฟเวอร์กลับมา */
     fetch(request)
-      .then(function (r) { if (r && r.ok) safePut('./index.html', r.clone()); })
+      .then(function (r) {
+        if (r && r.ok) safePut('./index.html', r.clone());
+      })
       .catch(function () {});
     return cached;
   }
@@ -121,7 +129,9 @@ async function handleAsset(request) {
   const cached = await safeMatch(request);
   if (cached) {
     fetch(request)
-      .then(function (r) { if (r && r.ok) safePut(request, r.clone()); })
+      .then(function (r) {
+        if (r && r.ok) safePut(request, r.clone());
+      })
       .catch(function () {});
     return cached;
   }
@@ -141,10 +151,16 @@ self.addEventListener('install', function (event) {
     caches
       .open(CACHE)
       .then(function (cache) {
-        return Promise.allSettled(CORE_ASSETS.map(function (url) { return cache.add(url); }));
+        return Promise.allSettled(
+          CORE_ASSETS.map(function (url) {
+            return cache.add(url);
+          })
+        );
       })
       .catch(function () {})
-      .then(function () { return self.skipWaiting(); })
+      .then(function () {
+        return self.skipWaiting();
+      })
   );
 });
 
@@ -154,11 +170,19 @@ self.addEventListener('activate', function (event) {
       .keys()
       .then(function (keys) {
         return Promise.all(
-          keys.filter(function (k) { return k !== CACHE; }).map(function (k) { return caches.delete(k); })
+          keys
+            .filter(function (k) {
+              return k !== CACHE;
+            })
+            .map(function (k) {
+              return caches.delete(k);
+            })
         );
       })
       .catch(function () {})
-      .then(function () { return self.clients.claim(); })
+      .then(function () {
+        return self.clients.claim();
+      })
   );
 });
 
@@ -167,7 +191,11 @@ self.addEventListener('fetch', function (event) {
   if (req.method !== 'GET') return;
 
   let url;
-  try { url = new URL(req.url); } catch (e) { return; }
+  try {
+    url = new URL(req.url);
+  } catch (e) {
+    return;
+  }
   if (url.origin !== self.location.origin) return;
 
   const isNavigation = req.mode === 'navigate';
@@ -175,7 +203,9 @@ self.addEventListener('fetch', function (event) {
   /* handleNavigation/handleAsset เป็น async จึงไม่มี sync throw,
      และ .catch สุดท้ายกันไม่ให้ respondWith reject อีกชั้น */
   const outcome = (isNavigation ? handleNavigation(req) : handleAsset(req)).catch(function () {
-    return fetch(req).catch(function () { return offlineResponse(); });
+    return fetch(req).catch(function () {
+      return offlineResponse();
+    });
   });
 
   event.respondWith(outcome);
