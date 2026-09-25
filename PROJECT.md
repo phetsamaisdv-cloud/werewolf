@@ -19,13 +19,19 @@
 
 ## 2. โครงสร้างไฟล์ปัจจุบัน
 
-| ไฟล์ | ขนาด | บรรทัด | สถานะ |
-|---|---|---|---|
-| `index.html` | 137 KB | ~2,930 | ✅ ไฟล์หลัก เวอร์ชัน **10.0** (SAVE_KEY `werewolf_v9`) |
-| `InDexBlackUp.html` | 136 KB | ~2,663 | 🗄️ backup เวอร์ชันเก่า **9.6** (SAVE_KEY `werewolf_v8`) |
-| `PROJECT.md` | — | — | 📄 เอกสารนี้ |
+| ไฟล์ | ขนาด | สถานะ |
+|---|---|---|
+| `index.html` | ~137 KB · ~2,933 บรรทัด | ✅ ไฟล์หลัก เวอร์ชัน **10.0** (SAVE_KEY `werewolf_v9`) |
+| `manifest.json` | 1 KB | ✅ PWA manifest (ชื่อ, scope, ไอคอน 5 แบบ) |
+| `sw.js` | ~2 KB | ✅ Service Worker v1.0.0 — cache shell + ทำงานออฟไลน์ได้ |
+| `icon.svg` + `icons/*.png` | 6 ไฟล์ | ✅ ไอคอน 180/192/512 + maskable |
+| `TESTING.md` | — | ✅ Smoke test checklist |
+| `PROJECT.md` | — | 📄 เอกสารสถานะโปรเจค (ไฟล์นี้) |
+| `.gitignore` | — | ✅ |
+| `archive/InDexBlackUp.v9.6.html` | 136 KB | 🗄️ backup เวอร์ชันเก่า **9.6** (ย้ายออกจาก root แล้ว) |
 
-**หมายเหตุ:** ยังไม่ใช่ Git repository, ยังไม่มี `README.md`, `package.json`, `manifest`, `service worker`, หรือไฟล์ทดสอบใด ๆ
+**สถานะ Git:** มี repository แล้ว (`main`) — commit baseline เป็น commit แรก, การเปลี่ยนแปลงทุกอย่างต้องผ่าน commit
+**ยังไม่มี:** `README.md`, `package.json`, build tool, ไฟล์ทดสอบอัตโนมัติ
 
 โครงสร้างภายใน `index.html` (แบ่งด้วย comment `/* ===== ... ===== */`):
 
@@ -123,17 +129,17 @@
 ## 4. สิ่งที่ยังไม่ได้ทำ / จุดที่ยังขาด (Not Done / Known Gaps)
 
 ### 4.1 โครงสร้างและวิศวกรรม (Engineering)
-- ❌ **ยังไม่มี Version Control** — ไม่ใช่ git repo, แก้ผิดทีเดียวคือจบ (เสี่ยงสูงมากเพราะเป็นไฟล์เดียว 2,930 บรรทัด)
+- ✅ **Version Control** — มี git repo แล้ว (branch `main`, commit baseline แล้ว) — *ทำเสร็จในรอบ P0*
 - ❌ **ไม่มี build / lint / format** — ไม่มี ESLint, Prettier, ไม่มี `package.json`
-- ❌ **ไม่มี test เลย** — ตรรกะกลางคืน/โหวต/ชนะ ซับซ้อนมากแต่ไม่มี regression test
+- ❌ **ไม่มี test อัตโนมัติ** — ตรรกะกลางคืน/โหวต/ชนะ ซับซ้อนมาก (มีแค่ smoke test checklist แบบ manual)
 - ❌ **Monolith** — CSS + HTML + JS อยู่ในไฟล์เดียว, ~137 KB, แยกชั้นไม่ได้ แก้ส่วนหนึ่งอาจพังส่วนอื่น
 - ❌ **ใช้ global functions + `onclick` inline ทั้งหมด** — ยากต่อการ refactor/ติดบั๊ก, ไม่มี module
 - ❌ **ไม่มี error boundary** — ถ้า `render()` throw กลางเกม หน้าขาว/ค้างได้
-- ❌ **Backup file ค้างอยู่** — `InDexBlackUp.html` (v9.6) ไม่ได้ sync กับของใหม่แล้ว สร้างความสับสน
+- ✅ **Backup file ถูกย้ายแล้ว** — `InDexBlackUp.html` → `archive/InDexBlackUp.v9.6.html` — *ทำเสร็จในรอบ P0*
 - ❌ **ไม่มี README / CHANGELOG / LICENSE** — คนอื่นเปิดมาไม่รู้ต้องทำอะไร
 
 ### 4.2 ฟีเจอร์ที่ยังไม่มี (Feature gaps)
-- ❌ **ยังไม่ใช่ PWA จริง** — มี meta ของ iOS แต่ **ไม่มี `manifest.json` และไม่มี `service worker`** → ใช้ออฟไลน์/เพิ่มลงหน้าจอหลักจริง ๆ ไม่ได้ (สำคัญมากสำหรับแอปใช้กลางงาน/กลางป่าที่สัญญาณไม่ดี)
+- ✅ **PWA** — มี `manifest.json` + `sw.js` (cache-first + background revalidate) → ใช้ออฟไลน์/เพิ่มลงหน้าจอหลักได้แล้ว — *ทำเสร็จในรอบ P0* (เหลือทดสอบบนมือถือจริงตาม `TESTING.md` §7)
 - ❌ **เสียงมีแค่ beep ตอนจับเวลาหมด** — ไม่มีเสียงธีม (เสียงหอน, กลอง, แจ้งเตือนตอนรุ่งเช้า/ผลโหวต)
 - ❌ **ไม่มี Preset สำหรับจำนวนผู้เล่น/ชุดบทบาท** — ต้องตั้งเองใหม่ทุกเกม (เช่น "8 คน มาตรฐาน", "12 คน แข่งขัน")
 - ❌ **บันทึกได้แค่ 1 เกม** — ทับกันเกมเดียว ไม่มีหลาย slot หรือ history เกมย้อนหลัง
@@ -158,17 +164,16 @@
 
 จัดลำดับตามความคุ้มค่า/ความเสี่ยง:
 
-### 🔴 P0 — ต้องทำก่อน (กันงานพัง)
-1. **เริ่ม Git + commit ของที่มีอยู่**
-   - `git init` → `.gitignore` → commit `index.html` เป็น baseline
-   - เหตุผล: ไฟล์เดียว ~2,930 บรรทัด แก้ผิดครั้งเดียวไม่มีอะไรให้กลับ
-2. **ย้าย/ลบ `InDexBlackUp.html`** → ใส่โฟลเดอร์ `archive/` หรือปล่อยให้ git เป็นคนเก็บ history แล้วลบไฟล์ (เลี่ยงสับสนว่าไฟล์ไหนใหม่กว่า)
-3. **เพิ่ม PWA: `manifest.json` + `service worker`**
-   - `manifest.json`: ชื่อ, icon 192/512, `display: standalone`, `theme_color`
-   - `sw.js`: cache ไฟล์ทั้งหมด → เล่นได้ **ออฟไลน์ 100%** (จำเป็นมากสำหรับการเล่นกลางแจ้ง/ต่างจังหวัด)
-   - ทดสอบเพิ่มลงหน้าจอหลักทั้ง iOS และ Android
-4. **Smoke test ทุกเส้นทางเกม** — เขียน checklist manual test อย่างน้อย:
-   - 8 คนมาตรฐานจบเกม, ลูกหมาป่าตาย, ผู้ต้องสาปกลายร่าง, ผู้ป่วยติดเชื้อ, ยายแก่ขับไล่, เจ้าชายโดนโหวต, คนโง่ชนะ, คู่รักชนะ, เสมอ 2 รอบ, Undo ทุกจุด, resume กลางคัน
+### 🔴 P0 — ต้องทำก่อน (กันงานพัง) — ✅ ทำเสร็จแล้ว (25 ก.ย. 2026)
+1. **เริ่ม Git + commit ของที่มีอยู่** — ✅ `git init` (branch `main`) + `.gitignore` + commit baseline `acd3998`
+2. **ย้าย `InDexBlackUp.html`** — ✅ ย้ายไป `archive/InDexBlackUp.v9.6.html` (ประวัติเก่าอยู่ใน git แล้ว)
+3. **เพิ่ม PWA** — ✅
+   - `manifest.json` (ชื่อไทย, `display: standalone`, scope `./`, ไอคอน 5 แบบ)
+   - `sw.js` v1.0.0 — precache shell, cache-first + revalidate ตอนหลัง, cleanup cache เก่า, fallback ข้อความออฟไลน์
+   - ไอคอน `icon.svg` + `icons/icon-180|192|512.png` + `icons/icon-maskable-192|512.png`
+   - `index.html`: เพิ่ม `<link rel="manifest">`, `apple-touch-icon` เป็น PNG จริง, meta description, และลงทะเบียน SW (เฉพาะ http/localhost)
+   - **ผลทดสอบอัตโนมัติผ่านแล้ว**: SW registered + controlling, cache ครบ 10 รายการ, จำลอง Offline แล้วรีเฟรช → แอปโหลดได้
+4. **Smoke test checklist** — ✅ เขียน `TESTING.md` ครบทั้ง 8 หัวข้อ (ตั้งค่า/กลางคืน/รุ่งเช้า/โหวต/เคสชนะ/save/PWA/UX) — **ยังไม่ได้เดิน test จริงทุกข้อ ต้องทำก่อนปล่อย**
 
 ### 🟡 P1 — ทำต่อ (คุณภาพชีวิต + ลดบั๊ก)
 5. **แยกไฟล์** เป็นอย่างน้อย `index.html` + `styles.css` + `app.js` (ยังไม่ต้องมี build step) → อ่าน/แก้ง่ายขึ้นทันที
@@ -197,9 +202,10 @@
 | บทบาทครบ 15 + เอฟเฟกต์ครบ | ✅ ครบ |
 | Undo / History / Save-Resume | ✅ มี |
 | ธีม, จับเวลา, Wake Lock, Haptic | ✅ มี |
-| Git / README / Tests / Lint | ❌ ยังไม่มี |
-| PWA (manifest + service worker) | ❌ ยังไม่มี |
+| **P0: Git / archive / PWA / checklist** | ✅ **เสร็จแล้ว** |
+| Smoke test จริงครบทุกข้อใน `TESTING.md` | ⬜ ยังไม่ได้ทำ |
+| README / Tests / Lint | ❌ ยังไม่มี |
 | แยกไฟล์ / modular | ❌ ยังเป็น monolith |
 | เสียงแจ้งเตือน / preset / multi-slot | ❌ ยังไม่มี |
 
-**สิ่งแรกที่ควรทำ:** `git init` + commit → สร้าง PWA ให้ใช้ออฟไลน์ได้ → แยกไฟล์ → ทำ smoke test ครบทุกเคส
+**ทำเสร็จแล้ว:** P0 ทั้ง 4 ข้อ → **ต่อไป:** เดิน smoke test ครบทุกข้อใน `TESTING.md` แล้วค่อยเริ่ม **P1** (แยกไฟล์ → แทน `confirm()` → preset → multi-slot → เสียง → error boundary)
