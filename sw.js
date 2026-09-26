@@ -3,7 +3,7 @@
    (ถ้า reject → navigation ทั้งหน้าล่มเป็น ERR_FAILED) */
 'use strict';
 
-const VERSION = 'v2.5.3';
+const VERSION = 'v2.5.4';
 const CACHE = 'werewolf-shell-' + VERSION;
 const NAV_TIMEOUT_MS = 5000;
 
@@ -58,7 +58,8 @@ const CORE_ASSETS = [
 
 async function safeMatch(request) {
   try {
-    const hit = await caches.match(request, {ignoreSearch: true});
+    const cache = await caches.open(CACHE);
+    const hit = await cache.match(request, {ignoreSearch: true});
     return hit || null;
   } catch (e) {
     return null;

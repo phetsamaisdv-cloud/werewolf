@@ -28,3 +28,4 @@ schemas
 eslint.config.js
 .prettierrc
 .prettierignore
+*.md

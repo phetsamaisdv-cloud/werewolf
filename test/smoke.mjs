@@ -44,23 +44,30 @@ function killTree(pid) {
 
 /** เก็บกวาด chrome ที่ค้างจากเทสก่อนหน้า (กัน localStorage รั่วข้าม run) */
 function sweepLeftovers() {
-  if (!IS_WIN) return;
-  const ps =
-    'Get-CimInstance Win32_Process -Filter "Name=\'chrome.exe\'" | ' +
-    "Where-Object { $_.CommandLine -like '*ww-smoke-*' } | " +
-    'ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }';
-  spawnSync('powershell', ['-NoProfile', '-Command', ps], {stdio: 'ignore'});
+  if (IS_WIN) {
+    const ps =
+      'Get-CimInstance Win32_Process -Filter "Name=\'chrome.exe\'" | ' +
+      "Where-Object { $_.CommandLine -like '*ww-smoke-*' } | " +
+      'ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }';
+    spawnSync('powershell', ['-NoProfile', '-Command', ps], {stdio: 'ignore'});
+  } else {
+    try {
+      spawnSync('pkill', ['-f', 'ww-smoke-'], {stdio: 'ignore'});
+    } catch {}
+  }
 }
 
 const CHROME_CANDIDATES = [
+  process.env.CHROME_PATH || '',
   'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
   'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
   'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
   'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
   '/usr/bin/google-chrome',
   '/usr/bin/chromium-browser',
+  '/snap/bin/chromium',
   '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
-];
+].filter(Boolean);
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -102,7 +109,10 @@ function startServer(port) {
       res.end(data);
     });
   });
-  return new Promise(resolve => server.listen(port, '127.0.0.1', () => resolve(server)));
+  return new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(port, '127.0.0.1', () => resolve(server));
+  });
 }
 
 /* ---------- page driver (注入 ลงในหน้า) ---------- */
@@ -187,7 +197,9 @@ window.__T = (function(){
   }
   function collectVotes(){
     const ban = getBanishedTarget();
-    const ids = dayAlive().filter(p=>p.id!==ban).map(p=>p.id);
+    const silP = silencedPlayer();
+    const silId = silP && silP.alive ? silP.id : -1;
+    const ids = dayAlive().filter(p=>p.id!==ban && p.id!==silId).map(p=>p.id);
     const pool = ids.map(id=>getP(id)).filter(p=>p && !isWolfTeam(p));
     const pick = pool.find(p=>p.roleId==='villager')
               || pool.find(p=>p.roleId!=='prince')
@@ -240,9 +252,9 @@ async function main() {
   const CDP_PORT = await freePort();
   const httpPort = await freePort();
   PAGE = `http://127.0.0.1:${httpPort}/index.html`;
-  const server = await startServer(httpPort);
   const chromePath = CHROME_CANDIDATES.find(p => fs.existsSync(p));
-  if (!chromePath) throw new Error('ไม่พบ Chrome/Edge');
+  if (!chromePath) throw new Error('ไม่พบ Chrome/Edge (ตั้ง CHROME_PATH ได้)');
+  const server = await startServer(httpPort);
 
   const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'ww-smoke-'));
   const chrome = spawn(
@@ -276,15 +288,18 @@ async function main() {
     try {
       ws && ws.close();
     } catch {}
-    killTree(chrome.pid);
+    try {
+      chrome && chrome.pid && killTree(chrome.pid);
+    } catch {}
     sweepLeftovers();
     try {
       server.close();
     } catch {}
     try {
-      fs.rmSync(profile, {recursive: true, force: true});
+      profile && fs.rmSync(profile, {recursive: true, force: true});
     } catch {}
   };
+  activeCleanup = cleanup;
 
   try {
     /* connect CDP */
@@ -1085,6 +1100,24 @@ async function main() {
         render();
         const dawnTxt = document.getElementById('app').innerText;
         out.steps.protect = {lycAlive: !!lyc.alive, silenceKept: S.g.night.silenceTarget === seerP.id, dawnShowsSilence: dawnTxt.includes('ปิดปาก'), activeHasPriest: active.includes('priest'), activeHasSpell: active.includes('spellcaster')};
+        S.screen = 'voting'; render(); startVoting();
+        selectVoter(seerP.id);
+        out.steps.protect.silVoteBlocked = S.ui.vVoter === null && !hasVoted(seerP.id);
+        document.querySelectorAll('.overlay').forEach(o => o.remove());
+        document.body.classList.remove('ov-open');
+        S.g.forceVoteRound = S.g.round;
+        const votersD = dayAlive().filter(p => p.id !== seerP.id);
+        const tgtD = votersD.find(p => p.roleId === 'villager') || votersD[votersD.length - 1];
+        for (const v of votersD) {
+          if (v.id === tgtD.id) continue;
+          selectVoter(v.id); selectTarget(tgtD.id); confirmVote();
+        }
+        const altD = votersD.find(p => p.id !== tgtD.id);
+        if (altD) { selectVoter(tgtD.id); selectTarget(altD.id); confirmVote(); }
+        await __T.settle(finishVoting());
+        out.steps.protect.forceWithSilence = S.screen !== 'voting';
+        document.querySelectorAll('.overlay').forEach(o => o.remove());
+        document.body.classList.remove('ov-open');
 
         /* E. ผู้รักสันติบังคับโหวตไม่ฆ่า + ตัวป่วนบังคับโหวต (ห้ามข้าม) */
         fresh(6, {werewolf:1, pacifist:1, seer:1, troublemaker:1});
@@ -1181,13 +1214,15 @@ async function main() {
       JSON.stringify(newRoleInfo.steps)
     );
     check(
-      'S14 lycan ถูกเทพพยากรณ์อ่านเป็นหมาป่า + นักบวชคุ้มกันรอด + ปิดปากแจ้งตอนรุ่งเช้า',
+      'S14 lycan ถูกเทพพยากรณ์อ่านเป็นหมาป่า + นักบวชคุ้มกันรอด + ปิดปากแจ้งตอนรุ่งเช้า + ปิดปากห้ามโหวต/ไม่ขัดวันบังคับ',
       newRoleInfo.steps &&
         newRoleInfo.steps.lycanSeer === true &&
         newRoleInfo.steps.protect &&
         newRoleInfo.steps.protect.lycAlive === true &&
         newRoleInfo.steps.protect.silenceKept === true &&
-        newRoleInfo.steps.protect.dawnShowsSilence === true,
+        newRoleInfo.steps.protect.dawnShowsSilence === true &&
+        newRoleInfo.steps.protect.silVoteBlocked === true &&
+        newRoleInfo.steps.protect.forceWithSilence === true,
       JSON.stringify(newRoleInfo.steps && newRoleInfo.steps.protect)
     );
     check(
@@ -1227,6 +1262,8 @@ async function main() {
     const missing = (Array.isArray(imgMissing) ? imgMissing : []).filter(r => !fs.existsSync(path.join(ROOT, 'assets', 'roles', r + '.jpg')));
     check('S15 มีรูปครบทุกบทบาท (assets/roles/<roleId>.jpg)', missing.length === 0, JSON.stringify(missing));
     check('S15 มีรูป fallback assets/role.jpg', fs.existsSync(path.join(ROOT, 'assets', 'role.jpg')));
+    const notInSw = (Array.isArray(imgMissing) ? imgMissing : []).filter(r => !swSrc.includes('./assets/roles/' + r + '.jpg'));
+    check('S15 รูปบทบาททุกใบอยู่ใน CORE_ASSETS ของ sw.js (ออฟไลน์ครบ)', notInSw.length === 0, JSON.stringify(notInSw));
 
     const bigGame =
       (await ev(`(async () => {
@@ -1851,8 +1888,12 @@ async function main() {
           S.g.night.killTarget2 = nonW[1].id;
           await __T.settle(endNight());
           const both = !nonW[0].alive && !nonW[1].alive;
-          out.ok.wolfcub = cubDead && bonus && both;
-          out.steps.wolfcub = {cubDead, bonus, both};
+          goToNight(); S.screen = 'night';
+          const noRepeat3 = S.g.night.wolfCubBonusActive === false;
+          goToNight(); S.screen = 'night';
+          const noRepeat4 = S.g.night.wolfCubBonusActive === false;
+          out.ok.wolfcub = cubDead && bonus && both && noRepeat3 && noRepeat4;
+          out.steps.wolfcub = {cubDead, bonus, both, noRepeat: noRepeat3 && noRepeat4};
         });
 
         /* 3. minion — เห็นชื่อหมาป่าในการ์ดแจกบทบาท */
@@ -2135,7 +2176,7 @@ async function main() {
           fresh(6, {werewolf:1, troublemaker:1, seer:1, witch:1});
           confirmTroublemaker();
           const tmP = byRole('troublemaker');
-          out.ok.troublemaker = tmP.usedTrouble === true && S.g.forceVoteRound === S.g.round + 1;
+          out.ok.troublemaker = tmP.usedTrouble === true && S.g.forceVoteRound === S.g.round && isForceVoteDay() === true;
           out.steps.troublemaker = {used: tmP.usedTrouble, forceRound: S.g.forceVoteRound, round: S.g.round};
         });
 
@@ -2303,5 +2344,17 @@ async function main() {
   }
 }
 
-main();
+let activeCleanup = null;
+main().catch(err => {
+  console.error('TEST ERROR:', (err && err.message) || String(err));
+  process.exit(2);
+});
 process.on('exit', sweepLeftovers);
+const onInterrupt = () => {
+  try {
+    activeCleanup && activeCleanup();
+  } catch {}
+  process.exit(130);
+};
+process.on('SIGINT', onInterrupt);
+process.on('SIGTERM', onInterrupt);

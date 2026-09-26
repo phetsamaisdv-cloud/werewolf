@@ -14,7 +14,7 @@ npm test          # หรือ: node test/smoke.mjs
 ```
 
 - ไม่ต้องติดตั้ง dependency — ใช้ Node http server + Chrome DevTools Protocol ตรง ๆ (ต้องมี Chrome/Edge)
-- ครอบคลุม **140 checks**: boot/theme/setup/manual assign/reveal/เล่นจบเกมครบทุกเฟส/boss ทุกบทบาท,
+- ครอบคลุม **141 checks**: boot/theme/setup/manual assign/reveal/เล่นจบเกมครบทุกเฟส/boss ทุกบทบาท,
   บันทึก-เล่นต่อ (reload กลางเกม), undo แขวนคอ, moderator panel, history, XSS, จับเวลา,
   dialog ของแอปแทน native `confirm()`/`alert()`, PWA (SW + cache + ออฟไลน์ + รูปบทบาท),
   save schema migration (`migrateSave`), เตือนตอนบันทึกไม่สำเร็จ,
@@ -28,6 +28,9 @@ npm test          # หรือ: node test/smoke.mjs
   witch ยารักษา+ยาพิษ, mayor เสียง x2, prince โหวต 2 ครั้ง, infected หมาป่าติดเชื้อ,
   cursed กลายร่าง, VW ตายตาม, cupid คู่รักชนะ, bodyguard/priest/pi คุ้มกัน+ใช้ครั้งเดียว,
   sorceress ค้นเจอเทพ, minion เห็นหมาป่า, tanner/cult/hoodlum ชนะ),
+  **audit รอบ 2**: troublemaker `forceVoteRound === round` (วันเดียว) + วันบังคับโหวต,
+  ลูกหมาป่าโบนัสได้แค่ 1 คืน, ปิดปากห้ามโหวต (วันปกติ+วันบังคับ) + game ไม่ค้าง,
+  รูปบทบาททุกใบอยู่ใน `CORE_ASSETS` ของ sw.js,
   ไม่มี JS exception / 404
 - ผ่านทั้งหมด = พร้อม deploy · ถ้า fail ดูบรรทัด `ไม่ผ่าน:` ท้ายผลลัพธ์
 
@@ -116,7 +119,7 @@ npm test          # หรือ: node test/smoke.mjs
 
 - [ ] เปิดผ่าน `localhost` หรือ HTTPS → Console ไม่มี error ของ service worker
 - [ ] DevTools → Application → Service Workers: **activated and running**
-- [ ] Cache Storage มี `werewolf-shell-v2.1.0` พร้อมไฟล์ครบ
+- [ ] Cache Storage มี `werewolf-shell-v*` (ดู `VERSION` ใน `sw.js`) พร้อมไฟล์ครบ
 - [ ] เปิด DevTools → Network → **Offline** → รีเฟรชหน้า → แอปยังโหลดและทำงานได้
 - [ ] ปิดอินเทอร์เน็ตจริงบนมือถือ → เปิดแอปจากหน้าจอหลักได้
 - [ ] Chrome/Edge: ไอคอนติดตั้ง PWA ถูกต้อง (manifest ไม่ error)

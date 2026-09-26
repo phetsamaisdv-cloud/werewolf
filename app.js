@@ -280,10 +280,12 @@ const IN_GAME_PHASES = ['night', 'dawn', 'hunter', 'day', 'voting', 'tie', 'exec
 let wakeLock = null;
 async function requestWake() {
   if (!S.setup.keepAwake || !('wakeLock' in navigator)) return;
+  if (wakeLock) return;
   try {
-    wakeLock = await navigator.wakeLock.request('screen');
-    wakeLock.addEventListener('release', () => {
-      wakeLock = null;
+    const lock = await navigator.wakeLock.request('screen');
+    wakeLock = lock;
+    lock.addEventListener('release', () => {
+      if (wakeLock === lock) wakeLock = null;
     });
   } catch (e) {}
 }
@@ -541,6 +543,7 @@ function migrateSave(d) {
       if (d.g.night.biteTarget === undefined) d.g.night.biteTarget = null;
     }
     if (d.g.wolfCubDead === undefined) d.g.wolfCubDead = false;
+    if (d.g.wolfCubBonusUsed === undefined) d.g.wolfCubBonusUsed = false;
     if (d.g.vwTarget === undefined) d.g.vwTarget = null;
     if (d.g.hoodlumTargets === undefined) d.g.hoodlumTargets = null;
     if (d.g.forceVoteRound === undefined) d.g.forceVoteRound = null;
@@ -744,7 +747,8 @@ function goHome() {
 let tInt = null,
   tEnd = 0;
 function startT() {
-  if (tInt || S.ui.timer <= 0) return;
+  if (tInt) return;
+  if (S.ui.timer <= 0) S.ui.timer = 300;
   S.ui.tRunning = true;
   tEnd = Date.now() + S.ui.timer * 1000;
   tInt = setInterval(tickT, 250);
@@ -1167,12 +1171,12 @@ function canStart() {
 }
 function balanceWarnings() {
   const msgs = [];
-  const w = S.setup.roles.werewolf + S.setup.roles.wolfcub;
+  const w = (S.setup.roles.werewolf || 0) + (S.setup.roles.wolfcub || 0);
   const wf = wolfFactionCount();
   const cursed = S.setup.roles.cursed;
   const infected = S.setup.roles.infected;
   const v = S.setup.n - wf;
-  if (w === 0) msgs.push('⚠ ไม่มีหมาป่าในเกม → เกมจะจบทันที');
+  if (w === 0) msgs.push('⚠ ไม่มีหมาป่าในเกม → เริ่มเกมไม่ได้');
   else if (instantParityWin()) msgs.push('⚠ ฝ่ายหมาป่าเท่าหรือมากกว่าชาวบ้าน → หมาป่าชนะทันที');
   else if (wf >= v) msgs.push('⚠ ฝ่ายหมาป่ามากกว่าหรือเท่าชาวบ้าน — มีหมาป่าเดียวดายยื้อไว้ แต่แพ้ได้ทุกเมื่อ');
   else if (w === 1 && S.setup.n >= 10) msgs.push('💡 ผู้เล่น ' + S.setup.n + ' คน แนะนำหมาป่า 2-3 ตัว');
@@ -1397,6 +1401,7 @@ function buildRandomDeck() {
 }
 function startGame() {
   if (!canStart()) return;
+  if (CORRUPT_BLOCK_KEY === saveKey()) CORRUPT_BLOCK_KEY = null;
   const deck = buildRandomDeck();
   if (S.setup.assignMode === 'manual') {
     S.g = null;
@@ -1460,6 +1465,7 @@ function createGameFromDeck(deck) {
     night: emptyNight(),
     prevBodyguardTarget: null,
     wolfCubDead: false,
+    wolfCubBonusUsed: false,
     wolvesInfectedRound: null,
     grandmaLastTarget: null,
     winner: null,
@@ -1926,7 +1932,7 @@ function confirmVampire() {
 function confirmTroublemaker() {
   const t = S.g.players.find(p => p.roleId === 'troublemaker');
   if (t) t.usedTrouble = true;
-  S.g.forceVoteRound = S.g.round + 1;
+  S.g.forceVoteRound = S.g.round;
   S.ui.nDone.troublemaker = true;
   S.ui.nChosen.troublemaker = [];
   addLog('night', '🎭 ตัวป่วนปลุกปั่น — วันรุ่งขึ้นทุกคนต้องโหวต (ห้ามข้าม)');
@@ -2241,7 +2247,7 @@ async function endNight() {
   if (S.g.night.biteTarget !== null && getP(S.g.night.biteTarget)) {
     lines.push('🧛 แวมไพร์กัด: ' + getP(S.g.night.biteTarget).name + ' (ตายวันรุ่งขึ้น)');
   }
-  if (S.g.forceVoteRound === S.g.round + 1) {
+  if (S.g.forceVoteRound === S.g.round) {
     lines.push('🎭 ตัวป่วน: วันรุ่งขึ้นทุกคนต้องโหวต ห้ามข้าม');
   }
   if (S.g.round === 1 && S.g.vwTarget !== null && getP(S.g.vwTarget)) {
@@ -2412,6 +2418,12 @@ async function endNight() {
   vibrate([100, 50, 100]);
   render();
 }
+async function askHunterShoot(tid) {
+  const t = getP(tid);
+  if (!S.ui.pendHunter || !t) return;
+  if (!(await askConfirm('ยิง ' + t.name + '?\n\nกระสุนใช้แล้วย้อนกลับไม่ได้', '🎯 ยิงปืน?', {okLabel: 'ยิง'}))) return;
+  hunterShoot(tid);
+}
 function hunterShoot(tid) {
   const info = S.ui.pendHunter;
   if (!info) return;
@@ -2485,6 +2497,11 @@ function hasVoted(id) {
 function selectVoter(id) {
   if (hasVoted(id)) return;
   if (id === getBanishedTarget()) return;
+  const sil = silencedPlayer();
+  if (sil && sil.alive && sil.id === id) {
+    askAlert('🔇 ' + sil.name + ' ถูกปิดปาก — ห้ามโหวตในวันนี้', 'ห้ามโหวต').catch(() => {});
+    return;
+  }
   S.ui.vVoter = id;
   S.ui.vTarget = null;
   vibrate(15);
@@ -2568,8 +2585,10 @@ async function finishVoting() {
   }
   if (S.g.forceVoteRound === S.g.round) {
     const banishedId = getBanishedTarget();
+    const silP = silencedPlayer();
+    const silId = silP && silP.alive ? silP.id : -1;
     const notVoted = dayAlive()
-      .filter(p => p.id !== banishedId && !hasVoted(p.id))
+      .filter(p => p.id !== banishedId && p.id !== silId && !hasVoted(p.id))
       .map(p => p.name);
     if (notVoted.length) {
       await askAlert('วันนี้บังคับโหวตทุกคน (ตัวป่วนปลุกปั่น)\n\nยังไม่ได้โหวต: ' + notVoted.join(', '), 'ยังไม่ครบ');
@@ -2745,6 +2764,8 @@ function undoExecution() {
   render();
 }
 function fromExecution() {
+  const deadTanner = (S.ui.exDeaths || []).map(getP).find(p => p && p.roleId === 'tanner');
+  if (deadTanner) return endGame({winner: 'tanner', reason: 'ยาจกถูกกำจัดออกจากเกม'});
   const win = checkWin();
   if (win) return endGame(win);
   goToNight();
@@ -2760,7 +2781,8 @@ function goToNight() {
   if (S.g.forceVoteRound !== null && S.g.forceVoteRound < S.g.round) S.g.forceVoteRound = null;
   S.g.prevBodyguardTarget = S.g.night.bodyguardTarget;
   S.g.grandmaLastTarget = S.g.night.grandmaTarget;
-  const bonusActive = S.g.wolfCubDead && !S.g.night.wolfCubBonusActive;
+  const bonusActive = S.g.wolfCubDead && !S.g.wolfCubBonusUsed;
+  if (bonusActive) S.g.wolfCubBonusUsed = true;
   S.g.night = emptyNight();
   S.g.night.wolfCubBonusActive = bonusActive;
   S.ui = newUI();
@@ -2829,7 +2851,7 @@ function showGameHistory() {
       const d = new Date(h.ts || 0);
       const pad = v => String(v).padStart(2, '0');
       const when = d.getDate() + '/' + (d.getMonth() + 1) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
-      const wLabel = WINNER_LABEL[h.winner] || h.winner || '—';
+      const wLabel = esc(WINNER_LABEL[h.winner] || h.winner || '—');
       const chips = (h.players || [])
         .map(p => {
           const R = ROLES[p.roleId];
@@ -2837,7 +2859,7 @@ function showGameHistory() {
         })
         .join('');
       return `<div class="log-item ${h.winner === 'werewolf' ? 'death' : 'info'}">
-      <div class="meta">${when} · ${h.n} คน · จบวันที่ ${h.round}</div>
+      <div class="meta">${when} · ${Number(h.n) || 0} คน · จบวันที่ ${Number(h.round) || 1}</div>
       <div><b>${wLabel}</b> — ${esc(h.reason || '')}</div>
       <div class="row" style="margin-top:8px">${chips}</div>
       <div class="row" style="justify-content:flex-end;margin-top:8px">${btn('🗑 ลบเกมนี้', `deleteHistoryItem(${i})`, {sm: 1, dg: 1})}</div>
@@ -2902,6 +2924,7 @@ function winnerText() {
   return WINNER_LABEL[S.g.winner] || '—';
 }
 function newGameEnd() {
+  if (CORRUPT_BLOCK_KEY === saveKey()) CORRUPT_BLOCK_KEY = null;
   try {
     localStorage.removeItem(saveKey());
   } catch (e) {}
@@ -3216,6 +3239,7 @@ function showDialog(opts) {
       document.removeEventListener('keydown', onKey, true);
       if (__dlgSettle === done) __dlgSettle = null;
       ov.remove();
+      if (!document.querySelector('.overlay')) document.body.classList.remove('ov-open');
       resolve(val);
     };
     const onKey = e => {
@@ -3237,6 +3261,7 @@ function showDialog(opts) {
       </div>
     </div>`;
     document.body.appendChild(ov);
+    document.body.classList.add('ov-open');
     ov.querySelector('[data-dlg="1"]').onclick = () => done(true);
     const cancel = ov.querySelector('[data-dlg="0"]');
     if (cancel) cancel.onclick = () => done(false);
@@ -3257,7 +3282,7 @@ const chip = (label, opts = {}) => {
   const cls = ['chip', opts.sel ? 'sel' : '', opts.sel2 ? 'sel2' : '', opts.dis ? 'dis' : '', opts.done ? 'done' : '', opts.skip ? 'skip' : '']
     .filter(Boolean)
     .join(' ');
-  const click = opts.onclick ? ` onclick="${opts.onclick}"` : '';
+  const click = opts.onclick ? ` onclick="${opts.onclick}" role="button" tabindex="0"` : '';
   return `<div class="${cls}"${click}>${label}</div>`;
 };
 const btn = (label, onclick, opts = {}) => {
@@ -3265,6 +3290,15 @@ const btn = (label, onclick, opts = {}) => {
   const dis = opts.dis ? ' disabled' : '';
   return `<button class="${cls}" onclick="${onclick}"${dis}>${label}</button>`;
 };
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Enter' && e.key !== ' ') return;
+  const t = e.target;
+  if (!t || t.tagName === 'BUTTON' || t.tagName === 'A' || t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT') return;
+  if (t.getAttribute && t.getAttribute('onclick')) {
+    e.preventDefault();
+    t.click();
+  }
+});
 const header = (ph, rn) =>
   `<div style="text-align:center;padding:8px 0"><div style="font-size:11px;letter-spacing:.12em;color:var(--muted);font-weight:700;text-transform:uppercase">${ph}</div><div style="font-size:26px;font-weight:800;letter-spacing:-.03em">${rn}</div></div>`;
 const notice = (txt, type = 'i', small = false) => `<div class="nt ${type}${small ? ' sm' : ''}">${txt}</div>`;
@@ -3588,8 +3622,8 @@ function renderSetup() {
           return `<div class="rrow">
           <div><div class="n">💾 ${esc(p.name)}</div><div class="dd">${p.n} คน · บทบาท ${cnt} · หมาป่า ${w}</div></div>
           <div class="cnt">
-            <button title="ใช้ชุดนี้" onclick="loadCustomPreset('${esc(p.id)}')">✓</button>
-            <button title="ลบชุดนี้" onclick="deleteCustomPreset('${esc(p.id)}')">✕</button>
+            <button title="ใช้ชุดนี้" onclick="loadCustomPreset(${esc(JSON.stringify(p.id))})">✓</button>
+            <button title="ลบชุดนี้" onclick="deleteCustomPreset(${esc(JSON.stringify(p.id))})">✕</button>
           </div>
         </div>`;
         })
@@ -4336,7 +4370,7 @@ function renderDawn() {
 
 function renderHunter() {
   const chips = alive()
-    .map(p => chip(esc(p.name), {onclick: `hunterShoot(${p.id})`}))
+    .map(p => chip(esc(p.name), {onclick: `askHunterShoot(${p.id})`}))
     .join('');
   return `<div class="scr">
     ${header('🎯 นายพราน', 'เลือกยิง 1 คน')}
