@@ -564,6 +564,14 @@ body.light .btn.p {
   border-radius: 4px;
   box-shadow: none;
 }
+.rimg-setup {
+  width: 36px;
+  height: 48px;
+  border-radius: 6px;
+  box-shadow: var(--shadow-sm);
+  aspect-ratio: 3/4;
+  object-fit: cover;
+}
 
 /* ---------- counters / toggles / segments ---------- */
 .cnt {

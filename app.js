@@ -3046,7 +3046,7 @@ function renderSetup() {
     const plusDis = totalRoles() >= S.setup.n || atMax;
     const tag = atMax ? ' <span class="dim f13" style="font-weight:700">(สูงสุด 1)</span>' : '';
     return `<div class="rrow">
-      <div><div class="n">${roleImg(r, 'rimg-sm')}${R.name}${tag}</div><div class="dd">${R.desc}</div></div>
+      <div><div class="n">${roleImg(r, 'rimg-setup')}${R.name}${tag}</div><div class="dd">${R.desc}</div></div>
       <div class="cnt">
         <button onclick="decRole('${r}')"${cnt <= 0 ? ' disabled' : ''}>−</button>
         <div class="v">${cnt}</div>
@@ -3074,24 +3074,6 @@ function renderSetup() {
         })
         .join('')
     : `<p class="dim f13 mt">ยังไม่มี — กด "💾 บันทึกชุดปัจจุบัน" เพื่อเก็บไว้ใช้ครั้งหน้า</p>`;
-  const curPreset = activePresetKind();
-  const presetBtn = (k, emoji, label) => `<button class="chip preset${curPreset === k ? ' sel' : ''}" onclick="applyPreset('${k}')">${emoji} ${label}</button>`;
-  const presetCard = `<div class="card">
-      <h3>⚡ Preset ชุดบทบาท</h3>
-      <p class="dim f13">ใช้ชุดพร้อมเล่น แล้วปรับจำนวนบทบาททีหลังได้</p>
-      <div class="grid g3 mt">
-        ${presetBtn('std', '⚖️', 'คลาสสิก')}
-        ${presetBtn('party', '🎉', 'ปาร์ตี้')}
-        ${presetBtn('comp', '🏆', 'แข่งขัน')}
-      </div>
-      <div class="eyebrow" style="margin-top:16px">👥 จำนวนผู้เล่น (ใช้ชุดคลาสสิก)</div>
-      <div class="grid g4 mt">${PRESET_SIZES.map(
-        n => `<button class="chip${S.setup.n === n ? ' sel' : ''}" onclick="applySizePreset(${n})">${n}</button>`
-      ).join('')}</div>
-      <div class="eyebrow" style="margin-top:16px">💾 ชุดที่บันทึกไว้</div>
-      ${customRows}
-      ${btn('💾 บันทึกชุดปัจจุบัน', 'savePreset()', {sm: 1})}
-    </div>`;
   const warnHtml = warnings.length ? warnings.map(w => notice(w, 'wr', true)).join('') : '';
   const err = !canStart() ? notice('ยังไม่พร้อม: ต้องมีหมาป่าอย่างน้อย 1 ตัว และน้อยกว่าจำนวนชาวบ้าน', 'dg') : '';
   const manualHint = S.setup.assignMode === 'manual' ? `<div class="dim f13 mt tc">หลังกดปุ่มด้านล่าง จะเข้าสู่หน้า "จัดบทบาท"</div>` : '';
@@ -3105,7 +3087,6 @@ function renderSetup() {
         <button onclick="chgN(1)"${S.setup.n >= 18 ? ' disabled' : ''}>+</button>
       </div>
     </div>
-    ${presetCard}
     <div class="card">
       <h3>ชื่อผู้เล่น</h3>
       <div class="lst mt">${nameInputs}</div>
@@ -3121,7 +3102,7 @@ function renderSetup() {
       ${neutralSection}
       <div class="dv"></div>
       <div class="rrow">
-        <div><div class="n">👤 ชาวบ้าน</div><div class="dd">ไม่มีพลังพิเศษ</div></div>
+        <div><div class="n">${roleImg('villager', 'rimg-setup')}ชาวบ้าน</div><div class="dd">ไม่มีพลังพิเศษ</div></div>
         <div style="font-size:22px;font-weight:700">${villagerCount()}</div>
       </div>
       <div class="dv"></div>

@@ -421,10 +421,7 @@ async function main() {
     check('S3 ชาวบ้านธรรมดาเหลือ 1', setupInfo.vill === 1, `vill=${setupInfo.vill}`);
     check('S3 balanceWarnings ไม่มีข้อร้ายแรง', setupInfo.warn === 0, `warn=${setupInfo.warn}`);
 
-    /* ===== S3b: preset ชุดบทบาท ===== */
-    const presetUi = await ev('document.getElementById("app").innerText');
-    check('S3b การ์ด preset แสดงในหน้าตั้งค่า', presetUi.toUpperCase().includes('PRESET ชุดบทบาท'));
-
+    /* ===== S3b: preset functions (applyPreset, save/load/delete custom preset) ===== */
     const presetInfo =
       (await ev(`(async () => {
       const snap = {n:S.setup.n, names:S.setup.names.slice(), roles:Object.assign({}, S.setup.roles), mode:S.setup.assignMode};
