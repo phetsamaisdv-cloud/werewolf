@@ -467,6 +467,49 @@ async function main() {
       JSON.stringify(presetInfo)
     );
 
+    /* ===== S3c: ชาวบ้านหลายตัว + สุ่มตามสมดุล + สรุปก่อนเริ่มเกม ===== */
+    const featInfo =
+      (await ev(`(() => {
+        const snap = {n: S.setup.n, roles: {...S.setup.roles}, mode: S.setup.assignMode};
+        S.setup.n = 8;
+        S.setup.roles = zeroRoles();
+        S.setup.roles.werewolf = 2;
+        const singleHasVillager = SINGLETON_ROLES.includes('villager');
+        incRole('villager'); incRole('villager'); incRole('villager');
+        const villCnt = S.setup.roles.villager || 0;
+        const bad = [];
+        for (const n of [4, 6, 8, 10, 12, 15, 18]) {
+          S.setup.n = n;
+          S.setup.roles = zeroRoles();
+          autoBalanceRoles();
+          if (!canStart()) bad.push(n + ':canStart');
+          if (villagerCount() < 1) bad.push(n + ':noVillager');
+          if (totalRoles() > n) bad.push(n + ':over');
+          if (balanceWarnings().some(w => w.charAt(0) === '\u26a0')) bad.push(n + ':warn');
+        }
+        S.setup.n = 8;
+        S.setup.roles = zeroRoles();
+        S.setup.roles.werewolf = 2; S.setup.roles.seer = 1;
+        render();
+        const villBtn = document.querySelector('.role-card[data-role="villager"] [aria-label="เพิ่มจำนวน"]');
+        const plusWorks = !!villBtn && !villBtn.disabled;
+        const sumHtml = roleSummaryCard();
+        const hasSummary = sumHtml.includes('สรุปบทบาท') && sumHtml.includes('ชาวบ้าน');
+        const sumTxt = buildRoleSummaryText();
+        const hasTxt = sumTxt.includes('ฝ่ายหมาป่า') && sumTxt.includes('คะแนนสมดุล');
+        S.setup.n = snap.n; S.setup.roles = snap.roles; S.setup.assignMode = snap.mode;
+        render();
+        return {singleHasVillager, villCnt, plusWorks, bad, hasSummary, hasTxt};
+      })()`)) || {};
+    check('S3c ชาวบ้านเพิ่มได้เกิน 1 คน (ไม่ถูกจำกัด singleton)', featInfo.singleHasVillager === false && featInfo.villCnt === 3, JSON.stringify(featInfo));
+    check('S3c ปุ่ม + ของชาวบ้านในหน้าตั้งค่าใช้ได้', featInfo.plusWorks === true);
+    check(
+      'S3c autoBalanceRoles ขนาด 4-18 คน: canStart/มีชาวบ้าน/ไม่ล้น/ไม่มี ⚠',
+      Array.isArray(featInfo.bad) && featInfo.bad.length === 0,
+      JSON.stringify(featInfo.bad || [])
+    );
+    check('S3c การ์ดสรุปบทบาท + ข้อความสรุปก่อนเริ่มเกม', featInfo.hasSummary === true && featInfo.hasTxt === true, JSON.stringify(featInfo));
+
     await ev('startGame()');
     check('S3 manual mode → หน้าจัดบทบาท', (await ev('S.screen')) === 'assign');
     check('S3 บทบาทในตารางถูกต้อง (isAssignValid)', (await ev('isAssignValid()')) === true);

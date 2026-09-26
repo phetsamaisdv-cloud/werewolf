@@ -79,7 +79,7 @@ const ROLES = {
 const ROLE_IMG_DIR = 'assets/roles';
 const ROLE_IMG_FALLBACK = 'assets/role.jpg';
 function roleImg(roleId, cls) {
-  return `<img class="rimg${cls ? ' ' + cls : ''}" src="${ROLE_IMG_DIR}/${esc(roleId)}.jpg" alt="" width="720" height="960" decoding="async" onerror="this.onerror=null;this.src='${ROLE_IMG_FALLBACK}'">`;
+  return `<img class="rimg${cls ? ' ' + cls : ''}" src="${ROLE_IMG_DIR}/${esc(roleId)}.jpg" alt="" width="360" height="480" decoding="async" onerror="this.onerror=null;this.src='${ROLE_IMG_FALLBACK}'">`;
 }
 const WOLF_GROUP = ['werewolf', 'wolfcub', 'minion', 'sorceress', 'lone_wolf'];
 const VILLAGE_GROUP = [
@@ -107,7 +107,7 @@ const VILLAGE_GROUP = [
 ];
 const NEUTRAL_GROUP = ['tanner', 'cult_leader', 'vampire', 'hoodlum'];
 const SPECIAL = [...WOLF_GROUP, ...VILLAGE_GROUP, ...NEUTRAL_GROUP];
-const SINGLETON_ROLES = SPECIAL.filter(r => r !== 'werewolf');
+const SINGLETON_ROLES = SPECIAL.filter(r => r !== 'werewolf' && r !== 'villager');
 const SAVE_KEY = 'werewolf_v9';
 const VER = '12.0';
 const SAVE_SCHEMA = 3;
@@ -1045,6 +1045,78 @@ function balanceMeter() {
     cls,
     true
   );
+}
+function totalVillagers() {
+  return (S.setup.roles.villager || 0) + villagerCount();
+}
+function autoBalanceRoles() {
+  const n = S.setup.n;
+  for (const r of SPECIAL) S.setup.roles[r] = 0;
+  const wolves = n >= 16 ? 4 : n >= 12 ? 3 : n >= 8 ? 2 : 1;
+  S.setup.roles.werewolf = wolves;
+  const tiers = [
+    {min: 5, roles: ['seer', 'witch']},
+    {min: 6, roles: ['hunter']},
+    {min: 7, roles: ['bodyguard']},
+    {min: 8, roles: ['priest', 'cupid']},
+    {min: 10, roles: ['grandma', 'mayor']},
+    {min: 11, roles: ['prince']},
+    {min: 12, roles: ['cursed', 'ghost']},
+    {min: 14, roles: ['infected', 'tough_guy']},
+    {min: 15, roles: ['minion']},
+    {min: 16, roles: ['spellcaster', 'pi']},
+    {min: 17, roles: ['sorceress']},
+    {min: 18, roles: ['apprentice_seer']}
+  ];
+  for (const t of tiers) {
+    if (n < t.min) continue;
+    for (const r of t.roles) {
+      if (totalRoles() >= n - 2) break;
+      S.setup.roles[r] = 1;
+    }
+  }
+  if (n >= 8) {
+    const extras = shuffle(['lycan', 'pacifist', 'troublemaker', 'virginia_woolf']);
+    for (const r of extras) {
+      if (totalRoles() >= n - 2) break;
+      S.setup.roles[r] = 1;
+    }
+  }
+  vibrate(15);
+  render();
+}
+function buildRoleSummaryText() {
+  const L = [];
+  L.push(`📋 บทบาทในเกม ${S.setup.n} คน`);
+  L.push('');
+  const grp = (label, roles) => {
+    const items = roles.filter(r => (S.setup.roles[r] || 0) > 0);
+    if (items.length) {
+      L.push(label);
+      for (const r of items) L.push('  ' + ROLES[r].name + ' ×' + S.setup.roles[r]);
+    }
+  };
+  grp('🔴 ฝ่ายหมาป่า:', WOLF_GROUP);
+  grp(
+    '🔵 ฝ่ายชาวบ้าน:',
+    VILLAGE_GROUP.filter(r => r !== 'villager')
+  );
+  grp('⚫ ฝ่ายอิสระ:', NEUTRAL_GROUP);
+  const tv = totalVillagers();
+  if (tv > 0) L.push('👤 ชาวบ้าน ×' + tv);
+  L.push('');
+  const bs = balanceScore();
+  L.push('📊 คะแนนสมดุล: ' + (bs >= 0 ? '+' : '') + bs);
+  return L.join('\n');
+}
+async function confirmStartGame() {
+  if (!canStart()) return;
+  const ok = await askConfirm(buildRoleSummaryText(), '📋 สรุปบทบาทในเกม ' + S.setup.n + ' คน', {
+    okLabel: '🎲 เริ่มเกมเลย',
+    cancelLabel: '↩ แก้ไขก่อน'
+  });
+  if (!ok) return;
+  startGame();
 }
 function buildRandomDeck() {
   const deck = [];
@@ -3077,6 +3149,31 @@ function showHelp() {
   );
 }
 
+function roleSummaryCard() {
+  const grpRows = roles =>
+    roles
+      .filter(r => (S.setup.roles[r] || 0) > 0)
+      .map(r => `<div class="sum-row"><span class="sum-name">${ROLES[r].name}</span><span class="sum-cnt">×${S.setup.roles[r]}</span></div>`)
+      .join('');
+  const wolfRows = grpRows(WOLF_GROUP);
+  const villageRows = grpRows(VILLAGE_GROUP.filter(r => r !== 'villager'));
+  const neutralRows = grpRows(NEUTRAL_GROUP);
+  const tv = totalVillagers();
+  const villagerRow = tv > 0 ? `<div class="sum-row"><span class="sum-name">👤 ชาวบ้าน (Villager)</span><span class="sum-cnt">×${tv}</span></div>` : '';
+  const bs = balanceScore();
+  const bsCls = Math.abs(bs) <= 2 ? 'ok' : bs > 0 ? 'wr' : 'dg';
+  if (totalRoles() === 0 && tv === 0) return '';
+  return `<div class="card sum-card">
+    <h3>📋 สรุปบทบาทในเกม</h3>
+    <div class="sum-grid">
+      ${wolfRows ? `<div class="sum-faction"><div class="eyebrow">🔴 ฝ่ายหมาป่า</div>${wolfRows}</div>` : ''}
+      ${villageRows || villagerRow ? `<div class="sum-faction"><div class="eyebrow">🔵 ฝ่ายชาวบ้าน</div>${villageRows}${villagerRow}</div>` : ''}
+      ${neutralRows ? `<div class="sum-faction"><div class="eyebrow">⚫ ฝ่ายอิสระ</div>${neutralRows}</div>` : ''}
+    </div>
+    <div class="sum-total">กำหนดแล้ว ${totalRoles()} / ${S.setup.n} คน · ชาวบ้านทั้งหมด ${tv} คน</div>
+    <div class="sum-balance nt ${bsCls} sm">📊 คะแนนสมดุล: <b>${bs >= 0 ? '+' + bs : bs}</b></div>
+  </div>`;
+}
 function renderSetup() {
   const nameInputs = S.setup.names
     .map((n, i) => `<input type="text" value="${esc(n)}" placeholder="ผู้เล่น ${i + 1}" oninput="setName(${i}, this.value)">`)
@@ -3142,7 +3239,7 @@ function renderSetup() {
     </div>
     <div class="card">
       <h3>บทบาท</h3>
-      <p class="dim f13">รวม ${totalRoles()} / ${S.setup.n} คน · ชาวบ้าน ${villagerCount()}</p>
+      <p class="dim f13">รวม ${totalRoles()} / ${S.setup.n} คน · ชาวบ้านทั้งหมด ${totalVillagers()} คน</p>
       <div class="eyebrow" style="margin-top:16px">🔴 ฝ่ายหมาป่า (Werewolf Team)</div>
       <div class="role-grid">${wolfSection}</div>
       <div class="eyebrow" style="margin-top:16px">🔵 ฝ่ายชาวบ้าน (Villager Team)</div>
@@ -3150,6 +3247,8 @@ function renderSetup() {
       <div class="eyebrow" style="margin-top:16px">⚫ ฝ่ายอิสระ / ฝ่ายที่สาม (Third-Party Factions)</div>
       <div class="role-grid">${neutralSection}</div>
       <div class="dv"></div>
+      ${btn('🎲 สุ่มบทบาทตามสมดุล', 'autoBalanceRoles()', {sm: 1})}
+      <div class="dim f13 tc mt">กำหนดบทบาทอัตโนมัติตามจำนวนผู้เล่นและคะแนนสมดุล</div>
       ${balanceMeter()}
     </div>
     <div class="card">
@@ -3192,7 +3291,8 @@ function renderSetup() {
     </div>
     ${warnHtml}
     ${err}
-    ${btn('ยืนยันและเริ่มเกม', 'startGame()', {p: 1, dis: !canStart()})}
+    ${roleSummaryCard()}
+    ${btn('ยืนยันและเริ่มเกม', 'confirmStartGame()', {p: 1, dis: !canStart()})}
     ${manualHint}
     ${btn('ย้อนกลับ', 'goHome()')}
   </div>`;

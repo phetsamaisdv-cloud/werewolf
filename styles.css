@@ -574,12 +574,12 @@ body.light .btn.p {
 }
 .rimg-large {
   width: 100%;
-  max-width: 720px;
+  max-width: 360px;
   height: auto;
   aspect-ratio: 3/4;
   object-fit: cover;
-  border-radius: 12px;
-  box-shadow: var(--shadow-md);
+  border-radius: 10px;
+  box-shadow: var(--shadow-sm);
   background: var(--surface3);
 }
 
@@ -681,6 +681,62 @@ body.light .btn.p {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+/* ---------- Role Summary Card (Setup Screen) ---------- */
+.sum-card {
+  border-left: 4px solid var(--primary);
+}
+.sum-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  margin-top: 12px;
+}
+@media (min-width: 768px) {
+  .sum-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+.sum-faction {
+  background: var(--surface2);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+.sum-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 14px;
+}
+.sum-name {
+  color: var(--text);
+  font-weight: 500;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sum-cnt {
+  color: var(--primary);
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.sum-total {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--line);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  text-align: center;
+}
+.sum-balance {
+  margin-top: 8px;
+  text-align: center;
 }
 
 /* ---------- counters / toggles / segments ---------- */
