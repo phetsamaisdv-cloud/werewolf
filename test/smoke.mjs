@@ -1808,6 +1808,458 @@ async function main() {
       JSON.stringify(vr.forceExempt || {})
     );
 
+    /* ===== S18: ครบทุกบทบาท 30/30 — กลไกของทุกบทบาททำงานจริง ===== */
+    await ev(DRIVER);
+    const roleAudit =
+      (await ev(`(async () => {
+      const out = {ok: {}, steps: {}, error: null};
+      function fresh(n, roles){
+        newGameEnd();
+        S.setup.n = n;
+        S.setup.names = Array.from({length:n}, (_,i)=>'K'+(i+1));
+        S.setup.roles = Object.assign(zeroRoles(), roles);
+        S.setup.assignMode = 'random';
+        startGame();
+        let g=0; while(S.screen==='reveal' && g++<60) nextRv();
+        return true;
+      }
+      const byRole = id => S.g.players.find(p=>p.roleId===id);
+      const vill = () => S.g.players.find(p=>p.roleId==='villager');
+      const S18 = async (role, fn) => { try { await fn(); } catch(e) { out.ok[role] = false; out.steps[role] = {err: String((e && e.stack) || e).slice(0, 300)}; } };
+      try {
+        /* 1. werewolf — กัดเหยื่อตายจริง */
+        await S18('werewolf', async () => {
+          fresh(6, {werewolf:1, seer:1, witch:1});
+          const wprey = vill();
+          S.g.night.killTarget = wprey.id;
+          await __T.settle(endNight());
+          out.ok.werewolf = !wprey.alive;
+          out.steps.werewolf = {dead: !wprey.alive, cause: S.ui.deathCauses[wprey.id]};
+        });
+
+        /* 2. wolfcub — ตาย → คืนถัดไปหมาป่าฆ่า 2 คน */
+        await S18('wolfcub', async () => {
+          fresh(7, {werewolf:1, wolfcub:1, seer:1, witch:1});
+          const cub = byRole('wolfcub');
+          S.g.night.killTarget = cub.id;
+          await __T.settle(endNight());
+          const cubDead = !cub.alive && S.g.wolfCubDead === true;
+          goToNight(); S.screen = 'night';
+          const bonus = S.g.night.wolfCubBonusActive === true && isWolfTwoTargetMode() === true;
+          const nonW = alive().filter(p=>!isWolfTeam(p));
+          S.g.night.killTarget = nonW[0].id;
+          S.g.night.killTarget2 = nonW[1].id;
+          await __T.settle(endNight());
+          const both = !nonW[0].alive && !nonW[1].alive;
+          out.ok.wolfcub = cubDead && bonus && both;
+          out.steps.wolfcub = {cubDead, bonus, both};
+        });
+
+        /* 3. minion — เห็นชื่อหมาป่าในการ์ดแจกบทบาท */
+        await S18('minion', async () => {
+          fresh(6, {werewolf:1, minion:1, seer:1, witch:1});
+          const wP = byRole('werewolf'), mnP = byRole('minion');
+          S.ui.rvIdx = S.g.players.indexOf(mnP);
+          S.ui.rvShown = true; S.ui.rvSeen = true;
+          S.screen = 'reveal'; render();
+          const mTxt = document.getElementById('app').innerText;
+          out.ok.minion = mTxt.indexOf('ฝั่งหมาป่า') >= 0 && mTxt.indexOf(wP.name) >= 0;
+          out.steps.minion = {seesWolfNames: out.ok.minion};
+        });
+
+        /* 4. sorceress — ค้นเจอเทพพยากรณ์จริง / ไม่เจอกับชาวบ้าน */
+        await S18('sorceress', async () => {
+          fresh(6, {werewolf:1, sorceress:1, seer:1, witch:1});
+          const soSeer = byRole('seer');
+          S.ui.tgts = []; toggleTgtN(soSeer.id); confirmSorceress();
+          const soHit = !!(S.ui.sorcRes && S.ui.sorcRes.isSeer === true);
+          const soV = vill();
+          S.ui.tgts = []; toggleTgtN(soV.id); confirmSorceress();
+          const soMiss = !!(S.ui.sorcRes && S.ui.sorcRes.isSeer === false);
+          out.ok.sorceress = soHit && soMiss && (S.g.sorcChecks || []).length === 2;
+          out.steps.sorceress = {hitSeer: soHit, missVillager: soMiss, checks: (S.g.sorcChecks || []).length};
+        });
+
+        /* 5. lone_wolf — นับเป็นฝ่ายหมาป่า + การ์ดหมาป่าตื่น */
+        await S18('lone_wolf', async () => {
+          fresh(7, {werewolf:1, lone_wolf:1, seer:1, witch:1});
+          const lw = byRole('lone_wolf');
+          out.ok.lone_wolf = isWolfTeam(lw) === true && activeNRoles().indexOf('werewolf') >= 0;
+          out.steps.lone_wolf = {isWolf: isWolfTeam(lw), nightCard: activeNRoles().indexOf('werewolf') >= 0};
+        });
+
+        /* 6. villager — อยู่ฝ่ายชาวบ้าน ไม่มีพลังพิเศษ */
+        await S18('villager', async () => {
+          fresh(6, {werewolf:1, seer:1, witch:1});
+          const v1 = vill();
+          out.ok.villager = !!v1 && v1.alive === true && !isWolfTeam(v1);
+          out.steps.villager = {alive: !!v1 && v1.alive, notWolf: !!v1 && !isWolfTeam(v1)};
+        });
+
+        /* 7. seer — ตรวจสอบได้ผลจริง */
+        await S18('seer', async () => {
+          fresh(6, {werewolf:1, seer:1, witch:1});
+          S.ui.tgt = vill().id; confirmSeer();
+          out.ok.seer = !!(S.ui.seerRes && S.ui.seerRes.isWerewolf === false);
+          out.steps.seer = {res: S.ui.seerRes ? S.ui.seerRes.isWerewolf : null};
+        });
+
+        /* 8. apprentice_seer — เทพพยากรณ์ตาย → เลื่อนขั้นตรวจแทน */
+        await S18('apprentice_seer', async () => {
+          fresh(7, {werewolf:1, seer:1, apprentice_seer:1, witch:1});
+          const aseer = byRole('seer'), app = byRole('apprentice_seer');
+          aseer.alive = false;
+          const apPromoted = isSeerPromoted() === true;
+          const apCard = activeNRoles().indexOf('seer') >= 0;
+          S.ui.tgt = vill().id; confirmSeer();
+          const apLast = S.g.seerChecks[S.g.seerChecks.length - 1];
+          const apBy = !!(apLast && apLast.by === 'apprentice');
+          const apLog = S.g.log.some(e=>e.msg && e.msg.indexOf('เทพพยากรณ์ฝึกหัด') >= 0);
+          out.ok.apprentice_seer = apPromoted && apCard && apBy && apLog && app.alive;
+          out.steps.apprentice_seer = {promoted: apPromoted, cardUp: apCard, byApprentice: apBy, log: apLog};
+        });
+
+        /* 9. witch — ยารักษาช่วยเหยื่อ + ยาพิษฆ่าจริง */
+        await S18('witch', async () => {
+          fresh(6, {werewolf:1, witch:1, seer:1});
+          const wVictim = vill();
+          S.g.night.killTarget = wVictim.id;
+          const wReady = canWHeal() === true;
+          startHeal();
+          const wHealFlag = S.g.night.savedByWitch === true;
+          await __T.settle(endNight());
+          const wHealed = wVictim.alive === true;
+          goToNight(); S.screen = 'night';
+          const wP2 = byRole('witch');
+          const wPoisonT = alive().find(p=>p.id !== wP2.id);
+          S.ui.tgt = wPoisonT.id; usePoison();
+          await __T.settle(endNight());
+          const wPoisoned = !wPoisonT.alive && S.ui.deathCauses[wPoisonT.id] === 'poison';
+          out.ok.witch = wReady && wHealFlag && wHealed && wPoisoned;
+          out.steps.witch = {healReady: wReady, victimSurvived: wHealed, poisoned: wPoisoned};
+        });
+
+        /* 10. hunter — ถูกโหวต → ยิงโต้ได้จริง */
+        await S18('hunter', async () => {
+          fresh(6, {werewolf:1, hunter:1, seer:1, witch:1});
+          const hP = byRole('hunter');
+          executePlayer(hP.id);
+          const hPend = !!(S.ui.pendHunter && S.ui.pendHunter.hunterId === hP.id) && !hP.alive;
+          const hT = alive().find(p=>p.roleId !== 'hunter');
+          goHunter(); hunterShoot(hT.id);
+          const hShot = !hT.alive && S.ui.deathCauses[hT.id] === 'hunter';
+          out.ok.hunter = hPend && hShot;
+          out.steps.hunter = {pendAfterHang: hPend, shotDead: hShot};
+        });
+
+        /* 11. bodyguard — คุ้มกันเหยื่อรอดจากหมาป่า */
+        await S18('bodyguard', async () => {
+          fresh(6, {werewolf:1, bodyguard:1, seer:1, witch:1});
+          const bgT = vill();
+          S.ui.tgt = bgT.id; confirmBodyguard();
+          S.g.night.killTarget = bgT.id;
+          await __T.settle(endNight());
+          out.ok.bodyguard = bgT.alive === true;
+          out.steps.bodyguard = {survived: bgT.alive, guarded: S.g.night.bodyguardTarget === bgT.id};
+        });
+
+        /* 12. priest — คุ้มกันรอด + ใช้ครั้งเดียว (หายจากกลางคืน) */
+        await S18('priest', async () => {
+          fresh(6, {werewolf:1, priest:1, seer:1, witch:1});
+          const prP = byRole('priest'), prT = vill();
+          S.ui.tgts = [prT.id]; confirmPriest();
+          S.g.night.killTarget = prT.id;
+          await __T.settle(endNight());
+          const prSaved = prT.alive === true;
+          const prUsed = prP.usedPriest === true;
+          const prGone = activeNRoles().indexOf('priest') < 0;
+          out.ok.priest = prSaved && prUsed && prGone;
+          out.steps.priest = {saved: prSaved, usedOnce: prUsed, goneNext: prGone};
+        });
+
+        /* 13. pi — ตรวจนัดเดียว: เจอหมาป่าในกลุ่ม/ไม่เจอ + ใช้แล้วหาย */
+        await S18('pi', async () => {
+          fresh(6, {werewolf:1, pi:1, seer:1, witch:1});
+          const piP = byRole('pi'), pw = byRole('werewolf');
+          const wIdx = S.g.players.indexOf(pw);
+          S.ui.tgts = [pw.id]; confirmPi();
+          const piHit = !!(S.ui.piRes && S.ui.piRes.hasWolf === true && S.ui.piRes.names.length === 3);
+          const piT2 = S.g.players[(wIdx + 3) % S.g.players.length];
+          S.ui.tgts = [piT2.id]; confirmPi();
+          const piClean = !!(S.ui.piRes && S.ui.piRes.hasWolf === false);
+          const piUsed = piP.usedPi === true && activeNRoles().indexOf('pi') < 0;
+          out.ok.pi = piHit && piClean && piUsed;
+          out.steps.pi = {hitWolf: piHit, cleanGroup: piClean, usedOnce: piUsed};
+        });
+
+        /* 14. tough_guy — ถูกกัดไม่ตายทันที บาดเจ็บเลื่อนตาย */
+        await S18('tough_guy', async () => {
+          fresh(6, {werewolf:1, tough_guy:1, seer:1});
+          const tgP = byRole('tough_guy');
+          S.g.night.killTarget = tgP.id;
+          await __T.settle(endNight());
+          out.ok.tough_guy = tgP.alive === true && tgP.wounded === true && tgP.woundRound === S.g.round + 1;
+          out.steps.tough_guy = {alive: tgP.alive, wounded: !!tgP.wounded, woundRound: tgP.woundRound};
+        });
+
+        /* 15. infected — ถูกกัด → ตาย + คืนถัดไปหมาป่าติดเชื้อฆ่าไม่ตาย */
+        await S18('infected', async () => {
+          fresh(6, {werewolf:1, infected:1, seer:1, witch:1});
+          const infP = byRole('infected');
+          S.g.night.killTarget = infP.id;
+          await __T.settle(endNight());
+          const infDead = !infP.alive && infP.triggeredInfection === true && S.g.wolvesInfectedRound === 2;
+          goToNight(); S.screen = 'night';
+          const infNow = isWolvesInfectedThisRound() === true;
+          const infPrey = alive().find(p=>!isWolfTeam(p));
+          S.g.night.killTarget = infPrey.id;
+          await __T.settle(endNight());
+          const infSaved = infPrey.alive === true;
+          out.ok.infected = infDead && infNow && infSaved;
+          out.steps.infected = {infectedDead: infDead, wolvesInfected: infNow, preySurvived: infSaved};
+        });
+
+        /* 16. prince — โหวตครั้งแรกไม่ตาย + ครั้งสองตาย */
+        await S18('prince', async () => {
+          fresh(6, {werewolf:1, prince:1, seer:1, witch:1});
+          const princeP = byRole('prince');
+          executePlayer(princeP.id);
+          const princeSpared = princeP.alive === true && princeP.princeUsed === true && S.screen === 'prince';
+          executePlayer(princeP.id);
+          const princeDead = princeP.alive === false && S.screen === 'execution';
+          out.ok.prince = princeSpared && princeDead;
+          out.steps.prince = {sparedFirst: princeSpared, deadSecond: princeDead};
+        });
+
+        /* 17. mayor — เสียงโหวตมีน้ำหนัก 2 */
+        await S18('mayor', async () => {
+          fresh(6, {werewolf:1, mayor:1, seer:1, witch:1});
+          S.screen = 'voting'; render(); startVoting();
+          const mP2 = byRole('mayor');
+          const mTgt = alive().find(p=>p.id !== mP2.id);
+          selectVoter(mP2.id); selectTarget(mTgt.id); confirmVote();
+          const mOthers = dayAlive().filter(p=>p.id!==mP2.id && p.id!==mTgt.id);
+          for (const v of mOthers){ selectVoter(v.id); selectTarget(mTgt.id); confirmVote(); }
+          const mTally = tally();
+          const mSum = mTally[mTgt.id] || 0;
+          out.ok.mayor = mSum === mOthers.length + 2;
+          out.steps.mayor = {sum: mSum, expected: mOthers.length + 2, others: mOthers.length};
+        });
+
+        /* 18. ghost — ตายคืนแรก + เบาะแสเผย 1 ตัวอักษร */
+        await S18('ghost', async () => {
+          fresh(6, {werewolf:1, ghost:1, seer:1, witch:1});
+          const ghP = byRole('ghost');
+          S.g.night.killTarget = vill().id;
+          await __T.settle(endNight());
+          out.ok.ghost = !ghP.alive && S.ui.deathCauses[ghP.id] === 'ghost' && !!S.g.ghostWord && (S.g.ghostRevealed || 0) >= 1;
+          out.steps.ghost = {dead: !ghP.alive, cause: S.ui.deathCauses[ghP.id], revealed: S.g.ghostRevealed};
+        });
+
+        /* 19. spellcaster — ปิดปากเป้าหมายจริง */
+        await S18('spellcaster', async () => {
+          fresh(6, {werewolf:1, spellcaster:1, seer:1, witch:1});
+          const scT = vill();
+          S.ui.tgts = [scT.id]; confirmSpellcaster();
+          out.ok.spellcaster = S.g.night.silenceTarget === scT.id;
+          out.steps.spellcaster = {silenceTarget: S.g.night.silenceTarget === scT.id};
+        });
+
+        /* 20. grandma — ขับไล่เป้าหมาย (ใช้ได้วันนั้น) */
+        await S18('grandma', async () => {
+          fresh(6, {werewolf:1, grandma:1, seer:1, witch:1});
+          const gmT = vill();
+          S.ui.tgt = gmT.id; confirmGrandma();
+          out.ok.grandma = S.g.night.grandmaTarget === gmT.id && getBanishedTarget() === gmT.id;
+          out.steps.grandma = {targetSet: S.g.night.grandmaTarget === gmT.id, banished: getBanishedTarget() === gmT.id};
+        });
+
+        /* 21. cupid — จับคู่คู่รัก + คู่รักต่างฝ่ายเหลือ 2 คนสุดท้ายชนะ */
+        await S18('cupid', async () => {
+          fresh(6, {werewolf:1, cupid:1, seer:1, witch:1});
+          const cA = vill(), cB = byRole('werewolf');
+          S.ui.tgts = []; toggleCupid(cA.id); toggleCupid(cB.id); confirmCupid();
+          const cPaired = cA.isLover === true && cB.isLover === true && cA.loverId === cB.id;
+          S.g.players.forEach(p=>{ if(p.id!==cA.id && p.id!==cB.id) p.alive = false; });
+          const cWin = checkWin();
+          out.ok.cupid = cPaired && !!cWin && cWin.winner === 'lovers';
+          out.steps.cupid = {paired: cPaired, winner: cWin ? cWin.winner : null};
+        });
+
+        /* 22. cursed — ถูกกัด → กลายเป็นหมาป่า (มีการ์ดหมาป่า) */
+        await S18('cursed', async () => {
+          fresh(6, {werewolf:1, cursed:1, seer:1, witch:1});
+          const cuP = byRole('cursed');
+          S.g.night.killTarget = cuP.id;
+          await __T.settle(endNight());
+          const cuTurned = cuP.alive === true && cuP.isTurned === true;
+          byRole('werewolf').alive = false;
+          const cuCard = activeNRoles().indexOf('werewolf') >= 0;
+          out.ok.cursed = cuTurned && cuCard;
+          out.steps.cursed = {turnedAlive: cuTurned, wolfCardFromCurse: cuCard};
+        });
+
+        /* 23. lycan — เทพพยากรณ์อ่านว่าเป็นหมาป่า */
+        await S18('lycan', async () => {
+          fresh(6, {werewolf:1, lycan:1, seer:1, witch:1});
+          const lyP = byRole('lycan');
+          S.ui.tgt = lyP.id; confirmSeer();
+          out.ok.lycan = !!(S.ui.seerRes && S.ui.seerRes.isWerewolf === true);
+          out.steps.lycan = {readsAsWolf: !!(S.ui.seerRes && S.ui.seerRes.isWerewolf)};
+        });
+
+        /* 24. pacifist — โหวตข้ามเสมอได้จริง */
+        await S18('pacifist', async () => {
+          fresh(6, {werewolf:1, pacifist:1, seer:1, witch:1});
+          S.screen = 'voting'; render(); startVoting();
+          const pcP = byRole('pacifist');
+          selectVoter(pcP.id); confirmVote();
+          const pcVote = S.ui.votes.find(v=>v.voterId===pcP.id);
+          out.ok.pacifist = !!(pcVote && pcVote.skip === true);
+          out.steps.pacifist = {skipVote: !!(pcVote && pcVote.skip)};
+        });
+
+        /* 25. virginia_woolf — เธอตาย → คนที่เลือกตายตาม (fear) */
+        await S18('virginia_woolf', async () => {
+          fresh(6, {werewolf:1, virginia_woolf:1, seer:1, witch:1});
+          const vwP = byRole('virginia_woolf'), vwFear = vill();
+          S.ui.tgts = [vwFear.id]; confirmVW();
+          S.g.night.killTarget = vwP.id;
+          await __T.settle(endNight());
+          out.ok.virginia_woolf = !vwP.alive && !vwFear.alive && S.ui.deathCauses[vwFear.id] === 'fear';
+          out.steps.virginia_woolf = {vwDead: !vwP.alive, fearDead: !vwFear.alive, cause: S.ui.deathCauses[vwFear.id]};
+        });
+
+        /* 26. troublemaker — บังคับโหวตวันรุ่งขึ้น */
+        await S18('troublemaker', async () => {
+          fresh(6, {werewolf:1, troublemaker:1, seer:1, witch:1});
+          confirmTroublemaker();
+          const tmP = byRole('troublemaker');
+          out.ok.troublemaker = tmP.usedTrouble === true && S.g.forceVoteRound === S.g.round + 1;
+          out.steps.troublemaker = {used: tmP.usedTrouble, forceRound: S.g.forceVoteRound, round: S.g.round};
+        });
+
+        /* 27. tanner — ถูกโหวตออก → ชนะทันที */
+        await S18('tanner', async () => {
+          fresh(6, {werewolf:1, tanner:1, seer:1, witch:1});
+          const tnP = byRole('tanner');
+          executePlayer(tnP.id);
+          out.ok.tanner = S.screen === 'end' && S.g.winner === 'tanner';
+          out.steps.tanner = {screen: S.screen, winner: S.g.winner};
+        });
+
+        /* 28. cult_leader — ชวนเข้าลัทธิได้จริง */
+        await S18('cult_leader', async () => {
+          fresh(6, {werewolf:1, cult_leader:1, seer:1, witch:1});
+          const clP = byRole('cult_leader');
+          const clRec = cultRecruitables();
+          S.ui.tgts = clRec.length ? [clRec[0].id] : [];
+          if (clRec.length) confirmCult();
+          out.ok.cult_leader = clRec.length > 0 && clRec[0].cult === true && cultCount() >= 1 && clP.alive;
+          out.steps.cult_leader = {recruitables: clRec.length, recruited: clRec.length > 0 && clRec[0].cult === true, cultCount: cultCount()};
+        });
+
+        /* 29. vampire — การ์ดกัดขึ้นจริง + กัดตั้งเป้า */
+        await S18('vampire', async () => {
+          fresh(6, {werewolf:1, vampire:1, seer:1, witch:1});
+          const vmpP = byRole('vampire');
+          const vmpActive = activeNRoles().indexOf('vampire') >= 0;
+          S.ui.tgts = [vill().id]; confirmVampire();
+          out.ok.vampire = vmpActive && S.g.night.biteTarget !== null;
+          out.steps.vampire = {nightCard: vmpActive, biteSet: S.g.night.biteTarget !== null};
+        });
+
+        /* 30. hoodlum — การ์ดขึ้นรอบแรก + ยังไม่เลือกเป้า */
+        await S18('hoodlum', async () => {
+          fresh(7, {werewolf:1, hoodlum:1, seer:1, witch:1});
+          out.ok.hoodlum = activeNRoles().indexOf('hoodlum') >= 0 && !S.g.hoodlumTargets;
+          out.steps.hoodlum = {nightCard: activeNRoles().indexOf('hoodlum') >= 0, targets: S.g.hoodlumTargets};
+        });
+
+        out.total = Object.keys(out.ok).length;
+        out.missing = Object.keys(out.ok).filter(k=>!out.ok[k]);
+        out.all = out.total === 30 && out.missing.length === 0;
+        S.g = null; S.ui = newUI(); S.screen = 'home'; render();
+      } catch(e) {
+        out.error = String((e && e.stack) || e);
+      }
+      return out;
+    })()`)) || {};
+    const ALL_ROLES = [
+      'werewolf',
+      'wolfcub',
+      'minion',
+      'sorceress',
+      'lone_wolf',
+      'villager',
+      'seer',
+      'apprentice_seer',
+      'witch',
+      'hunter',
+      'bodyguard',
+      'priest',
+      'pi',
+      'tough_guy',
+      'infected',
+      'prince',
+      'mayor',
+      'ghost',
+      'spellcaster',
+      'grandma',
+      'cupid',
+      'cursed',
+      'lycan',
+      'pacifist',
+      'virginia_woolf',
+      'troublemaker',
+      'tanner',
+      'cult_leader',
+      'vampire',
+      'hoodlum'
+    ];
+    const ROLE_DESC = {
+      werewolf: 'กัดเหยื่อตายจริง',
+      wolfcub: 'ตาย → คืนถัดไปหมาป่าฆ่า 2',
+      minion: 'เห็นชื่อหมาป่าในการ์ด',
+      sorceress: 'ค้นเจอเทพพยากรณ์จริง',
+      lone_wolf: 'นับเป็นฝ่ายหมาป่า + การ์ดขึ้น',
+      villager: 'ฝ่ายชาวบ้านปกติ',
+      seer: 'ตรวจสอบได้ผลจริง',
+      apprentice_seer: 'เทพตาย → เลื่อนขั้นตรวจแทน',
+      witch: 'ยารักษาช่วยรอด + ยาพิษฆ่า',
+      hunter: 'ถูกโหวต → ยิงโต้ได้',
+      bodyguard: 'คุ้มกันเหยื่อรอดกัด',
+      priest: 'คุ้มกันรอด + ใช้ครั้งเดียว',
+      pi: 'ตรวจนัดเดียวเจอหมาป่า + ใช้แล้วหาย',
+      tough_guy: 'ถูกกัด → บาดเจ็บเลื่อนตาย',
+      infected: 'ถูกกัด → หมาป่าติดเชื้อฆ่าไม่ตาย',
+      prince: 'โหวตครั้งแรกไม่ตาย ครั้งสองตาย',
+      mayor: 'เสียงโหวต x2',
+      ghost: 'ตายคืนแรก + เบาะแส 1 ตัวอักษร',
+      spellcaster: 'ปิดปากเป้าหมาย',
+      grandma: 'ขับไล่เป้าหมาย',
+      cupid: 'จับคู่ + คู่รักชนะ 2 คนสุดท้าย',
+      cursed: 'ถูกกัด → กลายเป็นหมาป่า',
+      lycan: 'ถูกอ่านว่าเป็นหมาป่า',
+      pacifist: 'โหวตข้ามเสมอ',
+      virginia_woolf: 'ตาย → คนที่เลือกตายตาม',
+      troublemaker: 'บังคับโหวตวันรุ่งขึ้น',
+      tanner: 'ถูกโหวต → ชนะทันที',
+      cult_leader: 'ชวนเข้าลัทธิได้จริง',
+      vampire: 'การ์ดกัดขึ้น + กัดตั้งเป้า',
+      hoodlum: 'การ์ดขึ้นรอบแรก'
+    };
+    check('S18 scenario รันครบไม่ throw', roleAudit.error === null, String(roleAudit.error || ''));
+    const rSteps = roleAudit.steps || {};
+    for (const r of ALL_ROLES) {
+      check('S18 ' + r + ' — ' + ROLE_DESC[r], !!(roleAudit.ok && roleAudit.ok[r] === true), JSON.stringify(rSteps[r] || {}));
+    }
+    check(
+      'S18 ครบทุกบทบาท 30/30 — กลไกของทุกบทบาททำงานจริง',
+      !!(roleAudit.all === true && roleAudit.total === 30 && roleAudit.missing && roleAudit.missing.length === 0),
+      JSON.stringify({total: roleAudit.total, missing: roleAudit.missing || []})
+    );
+
     /* ===== report ===== */
     check('จบชุด — ไม่มี JS exception ระหว่างทาง', pageErrors.length === 0, pageErrors.slice(0, 3).join(' | '));
     check('จบชุด — ไม่มี HTTP error (404/500) ระหว่างทาง', httpErrors.length === 0, httpErrors.slice(0, 3).join(' | '));

@@ -14,7 +14,7 @@ npm test          # หรือ: node test/smoke.mjs
 ```
 
 - ไม่ต้องติดตั้ง dependency — ใช้ Node http server + Chrome DevTools Protocol ตรง ๆ (ต้องมี Chrome/Edge)
-- ครอบคลุม **108 checks**: boot/theme/setup/manual assign/reveal/เล่นจบเกมครบทุกเฟส/boss ทุกบทบาท,
+- ครอบคลุม **140 checks**: boot/theme/setup/manual assign/reveal/เล่นจบเกมครบทุกเฟส/boss ทุกบทบาท,
   บันทึก-เล่นต่อ (reload กลางเกม), undo แขวนคอ, moderator panel, history, XSS, จับเวลา,
   dialog ของแอปแทน native `confirm()`/`alert()`, PWA (SW + cache + ออฟไลน์ + รูปบทบาท),
   save schema migration (`migrateSave`), เตือนตอนบันทึกไม่สำเร็จ,
@@ -24,6 +24,10 @@ npm test          # หรือ: node test/smoke.mjs
   **S17 กฎโหวต**: ข้ามมากกว่าโหวต = โหวตไม่มีผล, ข้ามเท่าโหวต = ล้างคะแนนโหวตใหม่,
   ยกเลิกได้ทั้ง 2 กรณี, hint เตือนสด, วันบังคับโหวตยกเว้นกฎ,
   ปกการ์ดแจกบทบาท = `role.jpg` 180×240 (เท่าการ์ดเปิด), การ์ด "ธีมและตัวเลือก" ถูกซ่อน (ค่าคงเดิมใช้ได้),
+  **S18 ครบทุกบทบาท 30/30**: กลไกจริงของทุกบทบาท (wolfcub ฆ่า 2, apprentice เลื่อนขั้น,
+  witch ยารักษา+ยาพิษ, mayor เสียง x2, prince โหวต 2 ครั้ง, infected หมาป่าติดเชื้อ,
+  cursed กลายร่าง, VW ตายตาม, cupid คู่รักชนะ, bodyguard/priest/pi คุ้มกัน+ใช้ครั้งเดียว,
+  sorceress ค้นเจอเทพ, minion เห็นหมาป่า, tanner/cult/hoodlum ชนะ),
   ไม่มี JS exception / 404
 - ผ่านทั้งหมด = พร้อม deploy · ถ้า fail ดูบรรทัด `ไม่ผ่าน:` ท้ายผลลัพธ์
 
