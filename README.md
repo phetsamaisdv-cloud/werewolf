@@ -1,4 +1,4 @@
-# คืนหอนหลอนหมาป่า 🐺
+﻿# คืนหอนหลอนหมาป่า 🐺
 
 ผู้ช่วยผู้ดำเนินเกม **Werewolf (หมาป่า)** สำหรับใช้บนมือถือเครื่องเดียว — คนเป็นเกมเปิดดูบทบาทของตัวเองทีละคนได้เองผ่านหน้าจอ ไม่ต้องแจกการ์ด ไม่มีสปอยล์
 
@@ -34,7 +34,7 @@ npm run serve
 | คำสั่ง            | ทำอะไร                                                                |
 | ----------------- | --------------------------------------------------------------------- |
 | `npm run serve`   | dev server ที่ `127.0.0.1:8123` (ใช้ทดสอบ PWA/ออฟไลน์)                |
-| `npm test`        | E2E **101 checks** ผ่าน Chrome DevTools Protocol (ต้องมี Chrome/Edge) |
+| `npm test`        | E2E **107 checks** ผ่าน Chrome DevTools Protocol (ต้องมี Chrome/Edge) |
 | `npm run check`   | `eslint .` + `prettier --check .` — รันก่อน commit เสมอ               |
 | `npm run lint`    | ESLint อย่างเดียว                                                     |
 | `npm run format`  | Prettier เขียนทับไฟล์ที่ format ไม่ตรง                                |

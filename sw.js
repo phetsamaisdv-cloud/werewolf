@@ -3,7 +3,7 @@
    (ถ้า reject → navigation ทั้งหน้าล่มเป็น ERR_FAILED) */
 'use strict';
 
-const VERSION = 'v2.5.0';
+const VERSION = 'v2.5.1';
 const CACHE = 'werewolf-shell-' + VERSION;
 const NAV_TIMEOUT_MS = 5000;
 

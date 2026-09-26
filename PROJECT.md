@@ -1,4 +1,4 @@
-# โปรเจค: คืนหอนหลอนหมาป่า (Werewolf Moderator App)
+﻿# โปรเจค: คืนหอนหลอนหมาป่า (Werewolf Moderator App)
 
 > สถานะโปรเจค ณ วันที่ 27 ก.ย. 2026 · เวอร์ชัน `12.0` (`VER` ใน `app.js`)
 > เอกสารนี้สรุปว่า **ตอนนี้มีอะไรบ้าง / ทำอะไรไปแล้วบ้าง / ยังไม่ได้ทำอะไร / ควรทำอะไรต่อ**
@@ -207,7 +207,7 @@ BOOT        load → applyTheme → render → ลงทะเบียน servi
 - **ฟีเจอร์เบาะแสผี** — `GHOST_WORDS` (17 คำไม่มีวรรณยุกต์) · ตายแล้วเปิดเผย `S.g.ghostWord` ทีละตัวอักษร (`ghostRevealed`) log `👻 ผีส่งเบาะแส (k/len): ตัวอักษรที่ N = X` · GM panel เห็นคำเต็ม
 - **P2 batch** — CSS `--shadow-lg`/`--text-dim`/`body.ov-open` (กัน scroll ตอน sheet เปิด) + `.btn.sm`/`input` 44px/16px (iOS zoom), viewport ลบ `maximum-scale=1`, `<noscript>`, `#srLive aria-live` + `announce()` (เพิ่ม/ลดบทบาทอ่านออกเสียง), **ผีถูกยายแก่ขับไล่เป็นเป้าโหวตได้** (tally/render จาก `alive()`, ยังโหวตเองไม่ได้), **การ์ดหมาป่าขึ้นเฉพาะมีนักล่าจริง** (`activeNRoles` + `hasKillerWolf`), flag `ส่งเชื้อ` ขึ้นเฉพาะผู้ที่ `triggeredInfection`, `save()` ไม่เก็บ `preExecuteSnap`, boot ขอ wake-lock ต่อเกมค้าง
 - **S16 regression suite ใหม่ 19 checks** — ผีเบาะทยอย+GM เห็นคำ, hunter-tanner, resume, parity, undo ลัทธิ/seer ข้ามรอบ, banished voting, killer gating, infected flag, XSS+lover GM, pacifist+forceVote, preExecuteSnap, corrupt slot, preset card, sheet a11y+Escape, theme-color, aria-live, migrate doctor/fool
-- ตรวจแล้ว: `npm run check` + `npm test` **101/101 ผ่าน** (`sw.js` bump เป็น v2.5.0)
+- ตรวจแล้ว: `npm run check` + `npm test` **107/107 ผ่าน** (เริ่มรอบนี้ที่ `sw.js` v2.5.0 → ล่าสุด v2.5.1 ดูกฎโหวต #27)
 
 ---
 
@@ -217,7 +217,7 @@ BOOT        load → applyTheme → render → ลงทะเบียน servi
 
 - ✅ **Version Control** — มี git repo แล้ว (branch `main`, commit baseline แล้ว) — _ทำเสร็จในรอบ P0_
 - ✅ **Lint + format** — ESLint 10 (flat config) + Prettier 3 เป็น devDependencies, `npm run check` รัน `eslint .` + `prettier --check .` (โค้ดที่ deploy ยังไม่มี dependency) — _ทำเสร็จแล้ว_
-- ✅ **Test อัตโนมัติ (E2E)** — `test/smoke.mjs` (Node + Chrome DevTools Protocol, **101 checks**, test เองไม่มี dependency) รันด้วย `npm test` — _ทำเสร็จในรอบ P1 + ขยาย S16_
+- ✅ **Test อัตโนมัติ (E2E)** — `test/smoke.mjs` (Node + Chrome DevTools Protocol, **107 checks**, test เองไม่มี dependency) รันด้วย `npm test` — _ทำเสร็จในรอบ P1 + ขยาย S16/S17_
 - ⬜ **Test manual ครบทุกข้อ** — ยังต้องเดิน `TESTING.md` ด้วยมือบนมือถือจริงก่อนปล่อย
 - 🟡 **แยกไฟล์แล้วแต่ยังไม่ modular** — `index.html` + `styles.css` (~28KB) + `app.js` (~150KB) ยังเป็นไฟล์เดียวต่อหนึ่ง concern แก้ส่วนหนึ่งอาจพังส่วนอื่น (มี E2E กัน)
 - ❌ **ใช้ global functions + `onclick` inline ทั้งหมด** — ยากต่อการ refactor/ติดบั๊ก, ไม่มี module
@@ -293,6 +293,7 @@ BOOT        load → applyTheme → render → ลงทะเบียน servi
 24. ✅ **สุ่มตามสมดุล v3 (ไม่ช้ำกัน) + การ์ดสรุปสอดคล้อง + แก้บั๊ก TRIM_ORDER** — `autoBalanceRoles()`: เก็บ history ผลลัพธ์ล่าสุด (`autoHist` reset เมื่อเปลี่ยน n) คัดชุดซ้ำออกทั้งหมด → กดสุ่มได้ผลต่างกันทุกครั้งวนครบทุกชุด (ไม่มีชุดใหม่ค่อยถูกล่าสุด FIFO), dedupe ตัวอย่างด้วย sig, **ตัด villager-jitter ที่เป็น "ความหลากหลายปลอม"** (สลับชาวบ้าน 0↔1 มองไม่เห็นแต่ทำเลข `กำหนดแล้ว 3/4 ↔ 2/4` เด้ง → ตรงที่ผู้ใช้ท้วงว่าสรุปไม่ตรง), คง `|score| ≤ 2` เข้มทุกขนาด 4-18, **MIN_N mayor/ghost 6→4** → ที่ 4 คนมี 3 ชุดจริง (หมาป่า+แม่มด `0` / หมาป่า+นายก `−2` / หมาป่า+ผี `−2`), `maxW` จำกัด 3 (w≥4 ถูก 💡 ปฏิเสธอยู่แล้ว → ไม่สุ่มทิ้ง), `evalCand` ครอบ try/finally · การ์ดสรุป: `summaryStats()` ใช้ร่วมกันระหว่างการ์ดกับ dialog ยืนยัน → แถว total `ครบทั้ง n / n คน ✓ · เลือกเอง X · เติมชาวบ้านอัตโนมัติ Y · ชาวบ้านรวม Z` (**ตรงกับผลรวมแถวเสมอ**) + แถวใหม่ `.sum-stats` นับรายฝ่าย `🐺/🔵/⚫` + คะแนนพร้อมคำตัดสิน (`ใกล้สมดุล ✓` / ฝั่งได้เปรียบ) + `data-*` สำหรับ test · **แก้บั๊กจริง: `TRIM_ORDER` ขาด `lone_wolf, ghost, cult_leader, vampire` (26/30)** → ลด n หรือโหลด custom preset เกินโควต้าตัดบทบาทเหล่านี้ไม่ได้/ตัดผิดตัว (ค้าง `totalRoles > n` เริ่มเกมไม่ได้) · **E2E 78/78 ผ่าน** (ใหม่: กดสุ่ม 3 ครั้งต่างกันทั้งคู่ a≠b≠c≠a, TRIM 30/30, การ์ดสรุปสอดคล้องกัน)
 25. ✅ **ภาพบทบาทครบทั้ง 30 ใบ (`assets/roles/*.jpg`) — ชุด artwork ใหม่** — แทนที่ภาพเดิมทุกใบด้วยภาพการ์ดสไตล์เกม (มีชื่อ+คำอธิบาย+แต้ม bp อังกฤษพิมพ์บนภาพ, โทนเข้มเข้าธีม) ครอป 3:4 + ย่อเป็น **360×480, JPEG q82 (~30KB/ใบ, รวม 12.1MB → 918KB)** ตรงกับ display สูงสุด 180px@2x · `sw.js` bump **v2.4.3** (บังคับ re-precache ให้ผู้ใช้เดิมเห็นภาพใหม่)
 26. ✅ **ตรวจบั๊กทั้งโปรเจค + ปรับปรุงรอบใหญ่ (audit P0 5 ข้อ / P1 12 ข้อ / P2 batch / ฟีเจอร์ผี / sw v2.5.0)** — รายละเอียดครบใน **§3.9** · **E2E 101/101 ผ่าน** (ชุด regression S16 ใหม่ 19 checks) · `sw.js` bump **v2.5.0**
+27. ✅ **กฎโหวตใหม่: เทียบเสียงข้ามกับเสียงโหวต** — กด "จบการโหวต" แล้วระบบเทียบให้: **ข้ามมากกว่าโหวต** → dialog "ข้ามมากกว่าโหวต — โหวตไม่มีผล" ยืนยัน = ไปกลางคืนโดยไม่มีใครถูกแขวน (กดยกเลิก = กลับมาแก้คะแนนได้) · **ข้ามเท่ากับโหวต** → dialog "เสมอ — โหวตใหม่ทั้งหมด" ยืนยัน = ล้างคะแนนแล้วโหวตใหม่ทั้งหมด (กดยกเลิก = คะแนนอยู่ครบ) · หน้าโหวตมี **hint เตือนสด** ทั้ง 2 กรณี (`.skip > real` / `= real`) · **วันบังคับโหวตของตัวป่วนยกเว้นกฎนี้** (ข้ามถูกบล็อกอยู่แล้ว — กันวนลูปเสมอไม่รู้จบ) · test **S17 ใหม่ 6 checks** → **E2E 107/107 ผ่าน** · `sw.js` bump **v2.5.1**
 
 ---
 
@@ -305,7 +306,7 @@ BOOT        load → applyTheme → render → ลงทะเบียน servi
 | Undo / History / Save-Resume                                                                                                                                                                                                                                                            | ✅ มี                                     |
 | ธีม, จับเวลา, Wake Lock, Haptic                                                                                                                                                                                                                                                         | ✅ มี                                     |
 | **P0: Git / archive / PWA / checklist**                                                                                                                                                                                                                                                 | ✅ **เสร็จแล้ว**                          |
-| Smoke test จริงครบทุกข้อใน `TESTING.md`                                                                                                                                                                                                                                                 | ⬜ ยังไม่ได้ทำ (แต่มี E2E 101/101 แทน)    |
+| Smoke test จริงครบทุกข้อใน `TESTING.md`                                                                                                                                                                                                                                                 | ⬜ ยังไม่ได้ทำ (แต่มี E2E 107/107 แทน)    |
 | README / Tests / Lint                                                                                                                                                                                                                                                                   | ✅ มีครบ                                  |
 | แยกไฟล์ / modular                                                                                                                                                                                                                                                                       | ✅ `index.html` + `styles.css` + `app.js` |
 | แทน `confirm()`/`alert()` ด้วย dialog ของแอป                                                                                                                                                                                                                                            | ✅ ทำเสร็จแล้ว                            |

@@ -1647,6 +1647,144 @@ async function main() {
     check('S16 aria-live region คงที่ทำงาน (announce)', fx.live === true, JSON.stringify(fx.live));
     check('S16 migrateSave: doctor/fool → villager ทุกจุด', fx.mig && fx.mig.assign && fx.mig.players && fx.mig.counts, JSON.stringify(fx.mig || {}));
 
+    /* ===== S17: กฎโหวตใหม่ — เทียบเสียงข้ามกับเสียงโหวต ===== */
+    await ev(DRIVER);
+    const voteRuleInfo =
+      (await ev(`(async () => {
+      const out = {steps: {}, error: null};
+      function fresh(n, roles){
+        newGameEnd();
+        S.setup.n = n;
+        S.setup.names = Array.from({length:n}, (_,i)=>'R'+(i+1));
+        S.setup.roles = Object.assign(zeroRoles(), roles);
+        S.setup.assignMode = 'random';
+        startGame();
+        let g=0; while(S.screen==='reveal' && g++<60) nextRv();
+        S.screen='voting'; render(); startVoting();
+        return true;
+      }
+      const byRole = id => S.g.players.find(p=>p.roleId===id);
+      const sleep = ms => new Promise(r=>setTimeout(r,ms));
+      const dlgEl = () => document.getElementById('dialogOverlay');
+      const dlgText = () => { const ov = dlgEl(); return ov ? ov.innerText : ''; };
+      const dlgClick = n => { const ov = dlgEl(); const b = ov ? ov.querySelector('[data-dlg="'+n+'"]') : null; if(b){ b.click(); return true; } return false; };
+      try {
+        /* A. ข้ามมากกว่าโหวต → ยืนยัน → โหวตไม่มีผล ไปกลางคืน (ไม่มีใครตาย) */
+        fresh(6, {werewolf:1, seer:1, witch:1});
+        const alive0 = alive().length;
+        const vs = alive().slice(0,3);
+        selectVoter(vs[0].id); confirmSkipVote();
+        selectVoter(vs[1].id); confirmSkipVote();
+        selectVoter(vs[2].id); selectTarget(vs[0].id); confirmVote();
+        render();
+        const hintSkip = document.getElementById('app').innerText.indexOf('การโหวตไม่มีผล') >= 0;
+        const pA = finishVoting();
+        await sleep(70);
+        const textA = dlgText();
+        dlgClick(1);
+        await pA;
+        out.steps.skipMore = {
+          hintSkip,
+          dlg: textA.indexOf('ข้ามมากกว่าโหวต') >= 0 && textA.indexOf('ไม่มีผล') >= 0,
+          screen: S.screen,
+          noDeath: alive().length === alive0,
+          log: S.g.log.some(e=>e.msg && e.msg.indexOf('การโหวตไม่มีผล')>=0)
+        };
+
+        /* B. เท่ากัน → ยืนยัน → ล้างคะแนน โหวตใหม่ทั้งหมด (ยังอยู่หน้าโหวต) */
+        fresh(6, {werewolf:1, seer:1, witch:1});
+        const bs = alive().slice(0,2);
+        selectVoter(bs[0].id); confirmSkipVote();
+        selectVoter(bs[1].id); selectTarget(bs[0].id); confirmVote();
+        render();
+        const hintTie = document.getElementById('app').innerText.indexOf('ต้องโหวตใหม่ทั้งหมด') >= 0;
+        const pB = finishVoting();
+        await sleep(70);
+        const textB = dlgText();
+        dlgClick(1);
+        await pB;
+        out.steps.tie = {
+          hintTie,
+          dlg: textB.indexOf('เสมอ') >= 0,
+          screen: S.screen,
+          cleared: S.ui.votes.length === 0,
+          log: S.g.log.some(e=>e.msg && e.msg.indexOf('ล้างคะแนนโหวตใหม่')>=0)
+        };
+
+        /* C. เท่ากัน + กดยกเลิก → คะแนนอยู่ครบ แก้ไขต่อได้ */
+        fresh(6, {werewolf:1, seer:1, witch:1});
+        const cs = alive().slice(0,2);
+        selectVoter(cs[0].id); confirmSkipVote();
+        selectVoter(cs[1].id); selectTarget(cs[0].id); confirmVote();
+        const pC = finishVoting();
+        await sleep(70);
+        dlgClick(0);
+        await pC;
+        out.steps.tieCancel = {kept: S.ui.votes.length === 2, screen: S.screen};
+
+        /* D. ข้ามมากกว่า + กดยกเลิก → กลับไปแก้ไขคะแนนได้ */
+        fresh(6, {werewolf:1, seer:1, witch:1});
+        const ds = alive().slice(0,3);
+        selectVoter(ds[0].id); confirmSkipVote();
+        selectVoter(ds[1].id); confirmSkipVote();
+        selectVoter(ds[2].id); selectTarget(ds[0].id); confirmVote();
+        const pD = finishVoting();
+        await sleep(70);
+        dlgClick(0);
+        await pD;
+        out.steps.skipCancel = {kept: S.ui.votes.length === 3, screen: S.screen};
+
+        /* E. วันบังคับโหวต (ตัวป่วน) → ยกเว้นกฎนี้ แขวนได้ตามปกติ (ไม่เสมอข้าม/โหวต) */
+        fresh(6, {werewolf:1, pacifist:1, seer:1, witch:1});
+        const pac2 = byRole('pacifist');
+        const other2 = alive().find(p=>p.id!==pac2.id);
+        alive().forEach(p=>{ if(p.id!==pac2.id && p.id!==other2.id) p.alive=false; });
+        render();
+        selectVoter(pac2.id); confirmVote();
+        selectVoter(other2.id); selectTarget(pac2.id); confirmVote();
+        S.g.forceVoteRound = S.g.round;
+        const pE = finishVoting();
+        await sleep(90);
+        const textE = dlgText();
+        const isTieDlg = textE.indexOf('เสมอ') >= 0;
+        dlgClick(1);
+        await pE;
+        out.steps.forceExempt = {isTieDlg, screen: S.screen};
+
+        S.g = null; S.ui = newUI(); S.screen = 'home'; render();
+      } catch(e) {
+        out.error = String((e && e.stack) || e);
+      }
+      return out;
+    })()`)) || {};
+    const vr = voteRuleInfo.steps || {};
+    check('S17 scenario รันครบไม่ throw', voteRuleInfo.error === null, String(voteRuleInfo.error || ''));
+    check(
+      'S17 ข้ามมากกว่าโหวต: hint + dialog + ยืนยัน = โหวตไม่มีผล ไปกลางคืนไม่มีคนตาย',
+      vr.skipMore && vr.skipMore.hintSkip && vr.skipMore.dlg && vr.skipMore.screen === 'night' && vr.skipMore.noDeath && vr.skipMore.log,
+      JSON.stringify(vr.skipMore || {})
+    );
+    check(
+      'S17 ข้าม = โหวต: hint + dialog เสมอ + ยืนยัน = ล้างคะแนน ยังอยู่หน้าโหวต',
+      vr.tie && vr.tie.hintTie && vr.tie.dlg && vr.tie.screen === 'voting' && vr.tie.cleared && vr.tie.log,
+      JSON.stringify(vr.tie || {})
+    );
+    check(
+      'S17 เสมอ + กดยกเลิก = คะแนนอยู่ครบ ไม่ล้าง',
+      vr.tieCancel && vr.tieCancel.kept && vr.tieCancel.screen === 'voting',
+      JSON.stringify(vr.tieCancel || {})
+    );
+    check(
+      'S17 ข้ามมากกว่า + กดยกเลิก = กลับแก้ไขคะแนนได้',
+      vr.skipCancel && vr.skipCancel.kept && vr.skipCancel.screen === 'voting',
+      JSON.stringify(vr.skipCancel || {})
+    );
+    check(
+      'S17 วันบังคับโหวตยกเว้นกฎ — แขวนได้ตามปกติ (ไม่ขึ้น dialog เสมอ)',
+      vr.forceExempt && vr.forceExempt.isTieDlg === false && (vr.forceExempt.screen === 'execution' || vr.forceExempt.screen === 'end'),
+      JSON.stringify(vr.forceExempt || {})
+    );
+
     /* ===== report ===== */
     check('จบชุด — ไม่มี JS exception ระหว่างทาง', pageErrors.length === 0, pageErrors.slice(0, 3).join(' | '));
     check('จบชุด — ไม่มี HTTP error (404/500) ระหว่างทาง', httpErrors.length === 0, httpErrors.slice(0, 3).join(' | '));

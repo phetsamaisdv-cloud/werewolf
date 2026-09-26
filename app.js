@@ -2589,6 +2589,42 @@ async function finishVoting() {
     .join(', ');
   addLog('day', '🗳 โหวต: ' + summary);
 
+  /* เปรียบเทียบเสียงข้าม vs เสียงโหวต — ข้ามมากกว่า = โหวตไม่มีผล · เท่ากัน = โหวตใหม่ทั้งหมด
+     (วันบังคับโหวตของตัวป่วนยกเว้น — ข้ามถูกบล็อกอยู่แล้ว กันวนลูปเสมอไม่รู้จบ) */
+  const skipCount = S.ui.votes.length - realVotes.length;
+  const forceRound = S.g.forceVoteRound === S.g.round;
+  const pendNames = dayAlive()
+    .filter(p => !hasVoted(p.id))
+    .map(p => p.name);
+  const pendMsg = pendNames.length ? '\n\nยังไม่ได้โหวต: ' + pendNames.join(', ') : '';
+  if (!forceRound && skipCount > realVotes.length) {
+    const goNight = await askConfirm(
+      'ข้าม ' + skipCount + ' เสียง มากกว่า โหวต ' + realVotes.length + ' เสียง\nการโหวตครั้งนี้ไม่มีผล — ไม่มีใครถูกแขวน' + pendMsg + '\n\nไปกลางคืนเลย?',
+      'ข้ามมากกว่าโหวต — โหวตไม่มีผล',
+      {okLabel: 'ไปกลางคืน'}
+    );
+    if (!goNight) return;
+    addLog('day', '⚖️ ข้าม ' + skipCount + ' เสียงมากกว่าโหวต ' + realVotes.length + ' เสียง — การโหวตไม่มีผล ไม่มีใครถูกแขวน');
+    const win = checkWin();
+    if (win) return endGame(win);
+    return goToNight();
+  }
+  if (!forceRound && skipCount === realVotes.length) {
+    const revote = await askConfirm(
+      'ข้าม ' + skipCount + ' เสียง = โหวต ' + realVotes.length + ' เสียง\nผลโหวตเสมอ — ไม่มีใครถูกแขวน ต้องโหวตใหม่ทั้งหมด',
+      'เสมอ — โหวตใหม่ทั้งหมด',
+      {okLabel: 'ล้างคะแนน โหวตใหม่'}
+    );
+    if (revote) {
+      addLog('day', '⚖️ ข้าม ' + skipCount + ' = โหวต ' + realVotes.length + ' เสียง — ผลเสมอ ล้างคะแนนโหวตใหม่ทั้งหมด');
+      S.ui.votes = [];
+      S.ui.vVoter = null;
+      S.ui.vTarget = null;
+      render();
+    }
+    return;
+  }
+
   if (!realVotes.length) {
     const notVoted = dayAlive()
       .filter(p => !hasVoted(p.id))
@@ -4392,8 +4428,15 @@ function renderVoting() {
 
   const voteCount = S.ui.votes.length;
   const skipCount = S.ui.votes.filter(v => v.skip).length;
+  const realCount = voteCount - skipCount;
   const totalVoters = arr.length;
   const allVoted = voteCount >= totalVoters;
+  const outcomeMsg =
+    !forceVote && voteCount > 0 && skipCount > realCount
+      ? notice('🚫 ข้าม ' + skipCount + ' เสียง &gt; โหวต ' + realCount + ' เสียง — <b>จบโหวตตอนนี้ = การโหวตไม่มีผล</b> (ไม่มีใครถูกแขวน)', 'wr', true)
+      : !forceVote && voteCount > 0 && skipCount === realCount
+        ? notice('⚖️ ข้าม ' + skipCount + ' เสียง = โหวต ' + realCount + ' เสียง — <b>จบโหวตตอนนี้ = เสมอ ต้องโหวตใหม่ทั้งหมด</b>', 'dg', true)
+        : '';
 
   const voterChips = arr
     .map(p => {
@@ -4478,7 +4521,7 @@ function renderVoting() {
       <div class="round">วันที่ ${S.g.round}</div>
     </section>
     ${banishedMsg}${silenceMsg}${forceMsg}${pacifistMsg}
-    ${statusLine}
+    ${statusLine}${outcomeMsg}
     <div class="card">
       <div class="arrow">${arrow}</div>
       <div class="row mt" style="justify-content:center">
