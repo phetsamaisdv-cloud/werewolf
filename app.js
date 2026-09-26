@@ -3633,37 +3633,6 @@ function renderSetup() {
         <button class="${S.setup.assignMode === 'manual' ? 'on' : ''}" onclick="setAssignMode('manual')">✋ กำหนดเอง</button>
       </div>
     </div>
-    <div class="card">
-      <h3>ธีมและตัวเลือก</h3>
-      <div class="set" style="flex-direction:column;align-items:stretch;gap:8px">
-        <div class="f13 dim">ธีม</div>
-        <div class="seg">
-          <button class="${S.setup.theme === 'dark' ? 'on' : ''}" onclick="setTheme('dark')">🌙 Dark</button>
-          <button class="${S.setup.theme === 'light' ? 'on' : ''}" onclick="setTheme('light')">☀️ Light</button>
-          <button class="${S.setup.theme === 'auto' ? 'on' : ''}" onclick="setTheme('auto')">🔄 Auto</button>
-        </div>
-      </div>
-      <div class="set" style="flex-direction:column;align-items:stretch;gap:8px">
-        <div class="f13 dim">ขนาดตัวอักษร</div>
-        <div class="seg">
-          <button class="${S.setup.fontSize === 'normal' ? 'on' : ''}" onclick="setFont('normal')">ปกติ</button>
-          <button class="${S.setup.fontSize === 'large' ? 'on' : ''}" onclick="setFont('large')">ใหญ่</button>
-          <button class="${S.setup.fontSize === 'xlarge' ? 'on' : ''}" onclick="setFont('xlarge')">ใหญ่มาก</button>
-        </div>
-      </div>
-      <div class="set mt">
-        <div>🔓 เปิดหน้าจอค้างไว้</div>
-        <div class="tg${S.setup.keepAwake ? ' on' : ''}" onclick="toggleSetup('keepAwake')"></div>
-      </div>
-      <div class="set">
-        <div>📳 สั่นเมื่อแจ้งเตือน</div>
-        <div class="tg${S.setup.haptic ? ' on' : ''}" onclick="toggleSetup('haptic')"></div>
-      </div>
-      <div class="set">
-        <div>🔔 เสียงแจ้งเตือน (จบกลางคืน / ผลโหวต / หมดเวลา)</div>
-        <div class="tg${S.setup.sound ? ' on' : ''}" onclick="toggleSetup('sound')"></div>
-      </div>
-    </div>
     ${warnHtml}
     ${err}
     <div class="card">
@@ -3753,7 +3722,7 @@ function renderReveal() {
   const minions = S.g.players.filter(p => p.roleId === 'minion');
   let rvHtml;
   if (!S.ui.rvShown) {
-    rvHtml = `<div class="rv" onclick="showRv()"><div class="hid">👆 แตะเพื่อดูบทบาท</div></div>`;
+    rvHtml = `<div class="rv" onclick="showRv()"><div class="ri"><img class="rimg" src="${ROLE_IMG_FALLBACK}" alt="" width="180" height="240" decoding="async"></div><div class="hid">👆 แตะเพื่อดูบทบาท</div></div>`;
   } else {
     let wolfLine = '';
     if (cur.roleId === 'werewolf' || cur.roleId === 'wolfcub') {

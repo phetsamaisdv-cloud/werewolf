@@ -593,6 +593,21 @@ async function main() {
     check('S3 dropdown บทบาท: ตัวเลือกชาวบ้านไม่ซ้ำ (SPECIAL มี villager แล้ว)', villOpts === 1, 'count=' + villOpts);
     await ev('confirmAssign()');
     check('S3 ยืนยัน → หน้าแจกการ์ด', (await ev('S.screen')) === 'reveal');
+    const coverInfo = await ev(
+      `(()=>{const img=document.querySelector('.rv .rimg'); return img ? {src: img.getAttribute('src'), w: img.getAttribute('width'), h: img.getAttribute('height'), cls: img.className, closed: !S.ui.rvShown} : null;})()`
+    );
+    check(
+      'S3 การ์ดปิดหน้าแจกบทบาท = ภาพ role.jpg 180×240 (ขนาดเท่าการ์ดเปิด)',
+      !!(
+        coverInfo &&
+        coverInfo.src === 'assets/role.jpg' &&
+        coverInfo.w === '180' &&
+        coverInfo.h === '240' &&
+        coverInfo.cls === 'rimg' &&
+        coverInfo.closed === true
+      ),
+      JSON.stringify(coverInfo)
+    );
 
     /* ===== S4: reveal → night ===== */
     const roleCount = await ev('(()=>{const m={};for(const p of S.g.players)m[p.roleId]=(m[p.roleId]||0)+1;return m;})()');
@@ -726,7 +741,7 @@ async function main() {
       const out = {isFn: typeof beep === 'function', defaultOn: S.setup.sound === true};
       goSetup();
       const ui = document.getElementById('app').innerText;
-      out.uiHasToggle = ui.includes('เสียงแจ้งเตือน');
+      out.cardHidden = !ui.includes('เสียงแจ้งเตือน') && !ui.includes('ธีมและตัวเลือก');
       out.errs = [];
       for(const k of ['timeup','night','vote','win','nope']){
         try{ beep(k); }catch(e){ out.errs.push(k + ':' + e.message); }
@@ -739,8 +754,8 @@ async function main() {
       return out;
     })()`)) || {};
     check(
-      'S11 เสียงแจ้งเตือน: toggle ในหน้าตั้งค่า + beep() ทุกแบบไม่ throw',
-      soundInfo.isFn === true && soundInfo.defaultOn === true && soundInfo.uiHasToggle === true && (soundInfo.errs || []).length === 0,
+      'S11 เสียงแจ้งเตือน: การ์ดตั้งค่าถูกซ่อน (ค่าคงเดิมใช้ได้) + beep() ทุกแบบไม่ throw',
+      soundInfo.isFn === true && soundInfo.defaultOn === true && soundInfo.cardHidden === true && (soundInfo.errs || []).length === 0,
       JSON.stringify(soundInfo)
     );
     check('S11 ปิด/เปิดเสียงได้', soundInfo.off === true && soundInfo.backOn === true, JSON.stringify(soundInfo));
