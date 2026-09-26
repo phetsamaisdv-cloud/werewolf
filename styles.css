@@ -572,6 +572,116 @@ body.light .btn.p {
   aspect-ratio: 3/4;
   object-fit: cover;
 }
+.rimg-large {
+  width: 100%;
+  max-width: 720px;
+  height: auto;
+  aspect-ratio: 3/4;
+  object-fit: cover;
+  border-radius: 12px;
+  box-shadow: var(--shadow-md);
+  background: var(--surface3);
+}
+
+/* ---------- Role Card Layout (Setup Screen) ---------- */
+.role-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+  margin-top: 12px;
+}
+@media (min-width: 768px) {
+  .role-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (min-width: 1200px) {
+  .role-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.role-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  overflow: hidden;
+  transition:
+    box-shadow 0.2s,
+    transform 0.2s;
+}
+.role-card:hover {
+  box-shadow: var(--shadow-lg);
+  transform: translateY(-2px);
+}
+.role-card__image {
+  width: 100%;
+  overflow: hidden;
+  background: var(--surface2);
+}
+.role-card__image .rimg-large {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+.role-card__info {
+  padding: 16px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.role-card__name {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+}
+.role-card__desc {
+  font-size: 14px;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+.role-card__controls {
+  display: flex;
+  justify-content: center;
+  padding: 12px 16px 16px;
+  border-top: 1px solid var(--line);
+  background: var(--surface2);
+}
+.cnt__btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  font-size: 20px;
+  font-weight: 700;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  color: var(--text);
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+}
+.cnt__btn:not(:disabled):hover {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+.cnt__btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.cnt__value {
+  min-width: 48px;
+  text-align: center;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
 
 /* ---------- counters / toggles / segments ---------- */
 .cnt {

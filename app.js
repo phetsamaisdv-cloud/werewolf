@@ -3,44 +3,87 @@
 /* ========== DATA ========== */
 /* bp = คะแนนสมดุลจากการ์ดจริง (บวก = ช่วยหมู่บ้าน, ลบ = ช่วยหมาป่า) ยึดตัวเลขบนการ์ดเป็นหลัก */
 const ROLES = {
-  werewolf: {name: 'หมาป่า', icon: '🐺', faction: 'wolf', bp: -6, desc: 'กลางคืนเลือกเหยื่อ 1 คน'},
-  wolfcub: {name: 'ลูกหมาป่า', icon: '🐾', faction: 'wolf', bp: -8, desc: 'ถ้าตาย คืนถัดไปหมาป่าฆ่าได้ 2 คน'},
-  minion: {name: 'บริวารหมาป่า', icon: '🐕', faction: 'wolf', bp: -6, desc: 'รู้ว่าใครเป็นหมาป่า แต่ไม่ได้ตื่นกลางคืน'},
-  sorceress: {name: 'นางปีศาจ', icon: '🔮', faction: 'wolf', bp: -3, desc: 'ทุกคืนค้นหาเทพพยากรณ์ (ไม่ตื่นกับหมาป่า)'},
-  lone_wolf: {name: 'หมาป่าเดียวดาย', icon: '🌑', faction: 'wolf', bp: -5, desc: 'ตื่นกับหมาป่า — ชนะเมื่อเหลือรอดคนเดียว'},
-  seer: {name: 'เทพพยากรณ์', icon: '👁️', faction: 'village', bp: 7, desc: 'กลางคืนตรวจ 1 คน'},
-  apprentice_seer: {name: 'เทพพยากรณ์ฝึกหัด', icon: '🔭', faction: 'village', bp: 4, desc: 'เมื่อเทพพยากรณ์ตาย → ตรวจแทนทุกคืน'},
-  witch: {name: 'แม่มด', icon: '🧪', faction: 'village', bp: 4, desc: 'มียารักษา 1 ยาพิษ 1 ใช้คืนละ 1 ชิ้น'},
-  hunter: {name: 'นายพราน', icon: '🎯', faction: 'village', bp: 3, desc: 'เมื่อตาย ยิงได้ 1 คน'},
-  bodyguard: {name: 'บอดี้การ์ด', icon: '🛡️', faction: 'village', bp: 3, desc: 'ป้องกันหมาป่า 1 คน/คืน'},
-  priest: {name: 'นักบวช', icon: '🙏', faction: 'village', bp: 3, desc: 'คุ้มกัน 1 คน ใช้ได้ 1 ครั้งตลอดเกม'},
-  pi: {name: 'นักสืบเอกชน', icon: '🕵️', faction: 'village', bp: 3, desc: 'ตรวจนัดเดียว: คนนั้น + เพื่อนบ้าน มีหมาป่าไหม'},
-  tough_guy: {name: 'นักเลงทนทาน', icon: '🩹', faction: 'village', bp: 3, desc: 'ถูกกัดไม่ตายทันที — ตายในคืนถัดไป'},
-  infected: {name: 'ผู้ป่วยติดเชื้อ', icon: '🦠', faction: 'village', bp: 3, desc: 'ถ้าถูกหมาป่ากัด หมาป่าจะฆ่าใครไม่ตายในคืนถัดไป'},
-  prince: {name: 'เจ้าชาย', icon: '👑', faction: 'village', bp: 3, desc: 'ถูกโหวตครั้งแรกไม่ตาย — เปิดบทบาททันที'},
-  mayor: {name: 'นายกเทศมนตรี', icon: '🎖️', faction: 'village', bp: 2, desc: 'เสียงโหวตมีค่า 2'},
-  ghost: {name: 'ผี', icon: '👻', faction: 'village', bp: 2, desc: 'ตายตั้งแต่คืนแรก — บอกเบาะแสได้วันละ 1 ตัวอักษร'},
-  spellcaster: {name: 'นักเวท', icon: '🔇', faction: 'village', bp: 1, desc: 'ทุกคืนเลือก 1 คน ห้ามพูดในวันรุ่งขึ้น'},
-  grandma: {name: 'ยายแก่', icon: '👵', faction: 'village', bp: 1, desc: 'ทุกคืนต้องขับไล่ 1 คนออกจากหมู่บ้าน'},
-  cupid: {name: 'กามเทพ', icon: '💘', faction: 'village', bp: -3, desc: 'คืนแรกเลือกคู่รัก 2 คน'},
-  cursed: {name: 'ผู้ต้องคำสาป', icon: '🌀', faction: 'village', bp: -3, desc: 'ถ้าถูกหมาป่ากัด จะกลายเป็นหมาป่า'},
-  lycan: {name: 'ไลแคน', icon: '🌗', faction: 'village', bp: -1, desc: 'เป็นชาวบ้าน แต่เทพพยากรณ์อ่านว่าเป็นหมาป่า'},
-  pacifist: {name: 'ผู้รักสันติ', icon: '🕊️', faction: 'village', bp: -1, desc: 'บังคับโหวต "ไม่ฆ่า" เสมอ'},
-  virginia_woolf: {name: 'เวอร์จิเนีย วูล์ฟ', icon: '🪶', faction: 'village', bp: -2, desc: 'คืนแรกเลือก 1 คน — ถ้าคุณตาย เขาตายตาม'},
-  troublemaker: {name: 'ตัวป่วน', icon: '🎭', faction: 'village', bp: -3, desc: '1 ครั้ง/เกม: บังคับให้ทุกคนโหวตในวันรุ่งขึ้น'},
-  tanner: {name: 'ยาจก', icon: '🙃', faction: 'neutral', bp: -2, desc: 'ชนะเมื่อถูกกำจัดออกจากเกม'},
-  cult_leader: {name: 'เจ้าลัทธิ', icon: '🕯️', faction: 'neutral', bp: 1, desc: 'ทุกคืนชวน 1 คนเข้าลัทธิ — ชนะเมื่อครบทุกคน'},
-  vampire: {name: 'แวมไพร์', icon: '🧛', faction: 'neutral', bp: -7, desc: 'กัด 1 คน/คืน เหยื่อตายวันรุ่งขึ้น ·หมาป่ากัดไม่ตาย'},
-  hoodlum: {name: 'นักเลง', icon: '🗡️', faction: 'neutral', bp: 0, desc: 'เลือก 2 เป้า — ชนะเมื่อทั้งคู่ตายและตัวเองรอด'},
-  villager: {name: 'ชาวบ้าน', icon: '👤', faction: 'village', bp: 1, desc: 'ไม่มีพลังพิเศษ'}
+  werewolf: {name: 'หมาป่า (Werewolf)', icon: '🐺', faction: 'wolf', bp: -6, desc: 'กลางคืนเลือกเหยื่อ 1 คน เพื่อกำจัดออกจากเกม'},
+  wolfcub: {name: 'ลูกหมาป่า (Wolf Cub)', icon: '🐾', faction: 'wolf', bp: -8, desc: 'เมื่อถูกกำจัด คืนถัดไปหมาป่าจะฆ่าได้ 2 คน'},
+  minion: {name: 'บริวารหมาป่า (Minion)', icon: '🐕', faction: 'wolf', bp: -6, desc: 'รู้ว่าใครเป็นหมาป่า แต่ไม่ได้ตื่นทำงานกลางคืน'},
+  sorceress: {name: 'นางปีศาจ (Sorceress)', icon: '🔮', faction: 'wolf', bp: -3, desc: 'ทุกคืนค้นหา 1 คน ว่าเป็นเทพพยากรณ์หรือไม่ (ไม่ตื่นพร้อมหมาป่า)'},
+  lone_wolf: {
+    name: 'หมาป่าเดียวดาย (Lone Wolf)',
+    icon: '🌑',
+    faction: 'wolf',
+    bp: -5,
+    desc: 'ตื่นพร้อมหมาป่า แต่อยู่ฝ่ายเดียว — ชนะเมื่อเหลือรอดเพียงคนเดียว (กดดันกฎ parity ของหมาป่า)'
+  },
+  seer: {name: 'เทพพยากรณ์ (Seer)', icon: '👁️', faction: 'village', bp: 7, desc: 'กลางคืนตรวจสอบ 1 คน ว่าเป็นฝ่ายหมาป่าหรือไม่'},
+  apprentice_seer: {
+    name: 'เทพพยากรณ์ฝึกหัด (Apprentice Seer)',
+    icon: '🔭',
+    faction: 'village',
+    bp: 4,
+    desc: 'เมื่อเทพพยากรณ์ตาย จะเลื่อนขั้นเป็นเทพพยากรณ์และตรวจสอบแทนทุกคืน'
+  },
+  witch: {name: 'แม่มด (Witch)', icon: '🧪', faction: 'village', bp: 4, desc: 'มียารักษา 1 ขวด และยาพิษ 1 ขวด ใช้ได้คืนละ 1 ขวด (ไม่บังคับใช้)'},
+  hunter: {name: 'นายพราน (Hunter)', icon: '🎯', faction: 'village', bp: 3, desc: 'เมื่อถูกกำจัด (โหวต/กัด) จะยิงฆ่า 1 คน ก่อนจะตาย'},
+  bodyguard: {
+    name: 'บอดี้การ์ด (Bodyguard)',
+    icon: '🛡️',
+    faction: 'village',
+    bp: 3,
+    desc: 'ทุกคืนเลือกคุ้มกัน 1 คน หากเป้าถูกหมาป่ากัด จะรอด (ไม่คุ้มกันตัวเองได้)'
+  },
+  priest: {name: 'นักบวช (Priest)', icon: '🙏', faction: 'village', bp: 3, desc: 'ทุกคืนเลือกศักดิ์สิทธิ์ 1 คน ใช้ได้เพียง 1 ครั้งตลอดเกม (ไม่ซ้ำคนเดิมได้)'},
+  pi: {
+    name: 'นักสืบเอกชน (Private Investigator)',
+    icon: '🕵️',
+    faction: 'village',
+    bp: 3,
+    desc: 'ตรวจสอบนัดเดียว: เป้าหมาย + เพื่อนบ้านซ้าย/ขวา มีหมาป่าอยู่หรือไม่'
+  },
+  tough_guy: {name: 'นักเลงทนทาน (Tough Guy)', icon: '🩹', faction: 'village', bp: 3, desc: 'ถูกหมาป่ากัดไม่ตายทันที — จะบาดเจ็บและตายในคืนถัดไป'},
+  infected: {name: 'ผู้ป่วยติดเชื้อ (Infected)', icon: '🦠', faction: 'village', bp: 3, desc: 'ถ้าถูกหมาป่ากัด หมาป่าจะติดเชื้อและฆ่าใครไม่ตายในคืนถัดไป'},
+  prince: {name: 'เจ้าชาย (Prince)', icon: '👑', faction: 'village', bp: 3, desc: 'ถูกโหวตครั้งแรกไม่ตาย — จะเปิดเผยตัวตนทันทีและเล่นต่อ'},
+  mayor: {name: 'นายกเทศมนตรี (Mayor)', icon: '🎖️', faction: 'village', bp: 2, desc: 'เสียงโหวตมีน้ำหนัก 2 เสียง'},
+  ghost: {name: 'ผี (Ghost)', icon: '👻', faction: 'village', bp: 2, desc: 'ตายตั้งแต่คืนแรก — แต่ยังบอกเบาะแสได้วันละ 1 ตัวอักษรในประวัติ'},
+  spellcaster: {name: 'นักเวท (Spellcaster)', icon: '🔇', faction: 'village', bp: 1, desc: 'ทุกคืนเลือก 1 คน ห้ามพูด/โหวตในวันรุ่งขึ้น (ปิดปาก)'},
+  grandma: {name: 'ยายแก่ (Grandma)', icon: '👵', faction: 'village', bp: 1, desc: 'ทุกคืนต้องขับไล่ 1 คนออกจากหมู่บ้าน คนนั้นจะไม่มีสิทธิ์โหวตวันนั้น'},
+  cupid: {name: 'กามเทพ (Cupid)', icon: '💘', faction: 'village', bp: -3, desc: 'คืนแรกจับคู่รัก 2 คน — ถ้าคู่รักต่างฝ่ายและเหลือ 2 คนสุดท้าย คู่รักชนะ'},
+  cursed: {name: 'ผู้ต้องคำสาป (Cursed)', icon: '🌀', faction: 'village', bp: -3, desc: 'เป็นชาวบ้าน แต่ถ้าถูกหมาป่ากัด จะกลายเป็นหมาป่า'},
+  lycan: {name: 'ไลแคน (Lycan)', icon: '🌗', faction: 'village', bp: -1, desc: 'เป็นชาวบ้านธรรมดา แต่เทพพยากรณ์จะอ่านว่าเป็นหมาป่า'},
+  pacifist: {name: 'ผู้รักสันติ (Pacifist)', icon: '🕊️', faction: 'village', bp: -1, desc: 'บังคับโหวต "ไม่ฆ่า" (ข้าม) เสมอ ไม่สามารถโหวตฆ่าใครได้'},
+  virginia_woolf: {
+    name: 'เวอร์จิเนีย วูล์ฟ (Virginia Woolf)',
+    icon: '🪶',
+    faction: 'village',
+    bp: -2,
+    desc: 'คืนแรกเลือก 1 คน — หากคุณถูกกำจัด คนที่เลือกก็จะตายตามทันที'
+  },
+  troublemaker: {name: 'ตัวป่วน (Troublemaker)', icon: '🎭', faction: 'village', bp: -3, desc: '1 ครั้ง/เกม: บังคับให้ทุกคนต้องโหวตในวันรุ่งขึ้น (ห้ามข้าม)'},
+  tanner: {name: 'ยาจก (Tanner)', icon: '🙃', faction: 'neutral', bp: -2, desc: 'ชนะเมื่อถูกกำจัดออกจากเกม (โหวต/กัด/ยิง ทุกทาง)'},
+  cult_leader: {
+    name: 'เจ้าลัทธิ (Cult Leader)',
+    icon: '🕯️',
+    faction: 'neutral',
+    bp: 1,
+    desc: 'ทุกคืนชวน 1 คนเข้าลัทธิ — ชนะเมื่อทุกคนอยู่ในลัทธิ (และเจ้าลัทธิรอด)'
+  },
+  vampire: {
+    name: 'แวมไพร์ (Vampire)',
+    icon: '🧛',
+    faction: 'neutral',
+    bp: -7,
+    desc: 'กัด 1 คน/คืน เหยื่อตายวันรุ่งขึ้น · ถ้าถูกหมาป่ากัดจะไม่ตาย · ชนะเมื่อเหลือรอดคนสุดท้าย'
+  },
+  hoodlum: {name: 'นักเลง (Hoodlum)', icon: '🗡️', faction: 'neutral', bp: 0, desc: 'คืนแรกเลือก 2 เป้า — ชนะเมื่อทั้งคู่ตายและตัวเองรอด'},
+  villager: {name: 'ชาวบ้าน (Villager)', icon: '👤', faction: 'village', bp: 1, desc: 'ไม่มีพลังพิเศษ — ใช้เหตุผลและการสังเกตหาหมาป่า'}
 };
 const ROLE_IMG_DIR = 'assets/roles';
 const ROLE_IMG_FALLBACK = 'assets/role.jpg';
 function roleImg(roleId, cls) {
-  return `<img class="rimg${cls ? ' ' + cls : ''}" src="${ROLE_IMG_DIR}/${esc(roleId)}.jpg" alt="" width="600" height="800" decoding="async" onerror="this.onerror=null;this.src='${ROLE_IMG_FALLBACK}'">`;
+  return `<img class="rimg${cls ? ' ' + cls : ''}" src="${ROLE_IMG_DIR}/${esc(roleId)}.jpg" alt="" width="720" height="960" decoding="async" onerror="this.onerror=null;this.src='${ROLE_IMG_FALLBACK}'">`;
 }
 const WOLF_GROUP = ['werewolf', 'wolfcub', 'minion', 'sorceress', 'lone_wolf'];
 const VILLAGE_GROUP = [
+  'villager',
   'seer',
   'apprentice_seer',
   'witch',
@@ -3045,12 +3088,18 @@ function renderSetup() {
     const atMax = isSingleton && cnt >= 1;
     const plusDis = totalRoles() >= S.setup.n || atMax;
     const tag = atMax ? ' <span class="dim f13" style="font-weight:700">(สูงสุด 1)</span>' : '';
-    return `<div class="rrow">
-      <div><div class="n">${roleImg(r, 'rimg-setup')}${R.name}${tag}</div><div class="dd">${R.desc}</div></div>
-      <div class="cnt">
-        <button onclick="decRole('${r}')"${cnt <= 0 ? ' disabled' : ''}>−</button>
-        <div class="v">${cnt}</div>
-        <button onclick="incRole('${r}')"${plusDis ? ' disabled' : ''}>+</button>
+    return `<div class="role-card" data-role="${r}">
+      <div class="role-card__image">${roleImg(r, 'rimg-large')}</div>
+      <div class="role-card__info">
+        <div class="role-card__name">${R.name}${tag}</div>
+        <div class="role-card__desc">${R.desc}</div>
+      </div>
+      <div class="role-card__controls">
+        <div class="cnt">
+          <button class="cnt__btn" onclick="decRole('${r}')"${cnt <= 0 ? ' disabled' : ''} aria-label="ลดจำนวน">−</button>
+          <div class="cnt__value" aria-live="polite">${cnt}</div>
+          <button class="cnt__btn" onclick="incRole('${r}')"${plusDis ? ' disabled' : ''} aria-label="เพิ่มจำนวน">+</button>
+        </div>
       </div>
     </div>`;
   };
@@ -3095,16 +3144,11 @@ function renderSetup() {
       <h3>บทบาท</h3>
       <p class="dim f13">รวม ${totalRoles()} / ${S.setup.n} คน · ชาวบ้าน ${villagerCount()}</p>
       <div class="eyebrow" style="margin-top:16px">🔴 ฝ่ายหมาป่า (Werewolf Team)</div>
-      ${wolfSection}
+      <div class="role-grid">${wolfSection}</div>
       <div class="eyebrow" style="margin-top:16px">🔵 ฝ่ายชาวบ้าน (Villager Team)</div>
-      ${villageSection}
+      <div class="role-grid">${villageSection}</div>
       <div class="eyebrow" style="margin-top:16px">⚫ ฝ่ายอิสระ / ฝ่ายที่สาม (Third-Party Factions)</div>
-      ${neutralSection}
-      <div class="dv"></div>
-      <div class="rrow">
-        <div><div class="n">${roleImg('villager', 'rimg-setup')}ชาวบ้าน</div><div class="dd">ไม่มีพลังพิเศษ</div></div>
-        <div style="font-size:22px;font-weight:700">${villagerCount()}</div>
-      </div>
+      <div class="role-grid">${neutralSection}</div>
       <div class="dv"></div>
       ${balanceMeter()}
     </div>
