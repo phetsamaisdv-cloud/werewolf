@@ -594,19 +594,27 @@ async function main() {
     await ev('confirmAssign()');
     check('S3 ยืนยัน → หน้าแจกการ์ด', (await ev('S.screen')) === 'reveal');
     const coverInfo = await ev(
-      `(()=>{const img=document.querySelector('.rv .rimg'); return img ? {src: img.getAttribute('src'), w: img.getAttribute('width'), h: img.getAttribute('height'), cls: img.className, closed: !S.ui.rvShown} : null;})()`
+      `(()=>{const img=document.querySelector('.rv-shield .rimg'); const blind=document.querySelector('.rv-blind'); const rv=document.querySelector('.rv');
+        return {found: !!img, src: img?img.getAttribute('src'):null, w: img?img.getAttribute('width'):null, h: img?img.getAttribute('height'):null,
+                blindHidden: blind?getComputedStyle(blind).visibility==='hidden':false, closedH: rv?rv.offsetHeight:0};})()`
     );
+    await ev('showRv()');
+    const openH = await ev('document.querySelector(".rv") ? document.querySelector(".rv").offsetHeight : 0');
+    await ev('hideRv()');
     check(
-      'S3 การ์ดปิดหน้าแจกบทบาท = ภาพ role.jpg 180×240 (ขนาดเท่าการ์ดเปิด)',
+      'S3 การ์ดปิด = shield role.jpg 180×240 + ซ่อนเนื้อหาแบบค้ำความสูง + ความสูงเท่าการ์ดเปิด',
       !!(
         coverInfo &&
+        coverInfo.found &&
         coverInfo.src === 'assets/role.jpg' &&
         coverInfo.w === '180' &&
         coverInfo.h === '240' &&
-        coverInfo.cls === 'rimg' &&
-        coverInfo.closed === true
+        coverInfo.blindHidden &&
+        coverInfo.closedH > 0 &&
+        openH > 0 &&
+        Math.abs(coverInfo.closedH - openH) <= 2
       ),
-      JSON.stringify(coverInfo)
+      JSON.stringify(Object.assign({}, coverInfo, {openH: openH}))
     );
 
     /* ===== S4: reveal → night ===== */

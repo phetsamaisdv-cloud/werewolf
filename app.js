@@ -3720,26 +3720,24 @@ function renderReveal() {
   const total = S.g.players.length;
   const otherWolves = S.g.players.filter(p => (p.roleId === 'werewolf' || p.roleId === 'wolfcub') && p.id !== cur.id);
   const minions = S.g.players.filter(p => p.roleId === 'minion');
-  let rvHtml;
-  if (!S.ui.rvShown) {
-    rvHtml = `<div class="rv" onclick="showRv()"><div class="ri"><img class="rimg" src="${ROLE_IMG_FALLBACK}" alt="" width="180" height="240" decoding="async"></div><div class="hid">👆 แตะเพื่อดูบทบาท</div></div>`;
-  } else {
-    let wolfLine = '';
-    if (cur.roleId === 'werewolf' || cur.roleId === 'wolfcub') {
-      const parts = [];
-      if (otherWolves.length) parts.push('หมาป่าตัวอื่น: ' + otherWolves.map(w => esc(w.name)).join(', '));
-      if (minions.length) parts.push('บริวารหมาป่า: ' + minions.map(m => esc(m.name)).join(', '));
-      if (parts.length) wolfLine = `<div class="rd mt">${parts.join('<br>')}</div>`;
-    } else if (cur.roleId === 'minion') {
-      const allWolves = S.g.players.filter(p => p.roleId === 'werewolf' || p.roleId === 'wolfcub' || p.roleId === 'lone_wolf');
-      if (allWolves.length) wolfLine = `<div class="rd mt">ฝั่งหมาป่า: ${allWolves.map(w => esc(w.name)).join(', ')}<br>คุณเป็นบริวาร — ต้องปกปิดตัวตน</div>`;
-    }
-    rvHtml = `<div class="rv ${R.faction}" onclick="hideRv()"><div>
+  let wolfLine = '';
+  if (cur.roleId === 'werewolf' || cur.roleId === 'wolfcub') {
+    const parts = [];
+    if (otherWolves.length) parts.push('หมาป่าตัวอื่น: ' + otherWolves.map(w => esc(w.name)).join(', '));
+    if (minions.length) parts.push('บริวารหมาป่า: ' + minions.map(m => esc(m.name)).join(', '));
+    if (parts.length) wolfLine = `<div class="rd mt">${parts.join('<br>')}</div>`;
+  } else if (cur.roleId === 'minion') {
+    const allWolves = S.g.players.filter(p => p.roleId === 'werewolf' || p.roleId === 'wolfcub' || p.roleId === 'lone_wolf');
+    if (allWolves.length) wolfLine = `<div class="rd mt">ฝั่งหมาป่า: ${allWolves.map(w => esc(w.name)).join(', ')}<br>คุณเป็นบริวาร — ต้องปกปิดตัวตน</div>`;
+  }
+  const bodyHtml = `<div class="rv-body">
       <div class="ri">${roleImg(cur.roleId)}</div><div class="rn">${R.name}</div>
       <div class="rf">${R.faction === 'wolf' ? '🔴 ฝ่ายหมาป่า' : R.faction === 'neutral' ? '⚫ ฝ่ายที่สาม' : '🔵 ฝ่ายชาวบ้าน'}</div>
       <div class="rd">${R.desc}</div>${wolfLine}
-    </div></div>`;
-  }
+    </div>`;
+  const rvHtml = !S.ui.rvShown
+    ? `<div class="rv" onclick="showRv()"><div class="rv-blind">${bodyHtml}</div><div class="rv-shield"><div class="ri"><img class="rimg" src="${ROLE_IMG_FALLBACK}" alt="" width="180" height="240" decoding="async"></div><div class="hid">👆 แตะเพื่อดูบทบาท</div></div></div>`
+    : `<div class="rv ${R.faction}" onclick="hideRv()">${bodyHtml}</div>`;
   const nextLabel = S.ui.rvIdx === total - 1 ? 'เริ่มเกม →' : 'ถัดไป →';
   const dots = S.g.players
     .map((_, i) => {
