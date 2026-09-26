@@ -776,8 +776,8 @@ function chgN(d) {
     const order = TRIM_ORDER;
     let trimmed = false;
     for (const r of order) {
-      if (S.setup.roles[r] > 0) {
-        S.setup.roles[r]--;
+      if ((S.setup.roles[r] || 0) > 0) {
+        S.setup.roles[r] = S.setup.roles[r] - 1;
         trimmed = true;
         break;
       }
@@ -836,7 +836,10 @@ const TRIM_ORDER = [
   'troublemaker',
   'virginia_woolf',
   'hoodlum',
+  'cult_leader',
+  'vampire',
   'pacifist',
+  'ghost',
   'lycan',
   'tanner',
   'spellcaster',
@@ -845,6 +848,7 @@ const TRIM_ORDER = [
   'tough_guy',
   'apprentice_seer',
   'sorceress',
+  'lone_wolf',
   'minion',
   'grandma',
   'prince',
@@ -1050,7 +1054,7 @@ function balanceMeter() {
 function totalVillagers() {
   return (S.setup.roles.villager || 0) + villagerCount();
 }
-let lastAutoSig = '';
+let autoHist = {n: -1, sigs: []};
 function autoBalanceRoles() {
   const n = S.setup.n;
   const prevSig = rolesSig(S.setup.roles);
@@ -1064,8 +1068,8 @@ function autoBalanceRoles() {
     apprentice_seer: 5,
     cupid: 6,
     cursed: 6,
-    ghost: 6,
-    mayor: 6,
+    ghost: 4,
+    mayor: 4,
     pacifist: 6,
     tanner: 6,
     virginia_woolf: 7,
@@ -1097,7 +1101,7 @@ function autoBalanceRoles() {
   const buildCandidate = () => {
     const R = zeroRoles();
     const minW = n >= 10 ? 2 : 1;
-    const maxW = Math.max(minW, Math.min(n >= 16 ? 4 : n >= 12 ? 3 : 2, Math.floor((n - 1) / 2)));
+    const maxW = Math.max(minW, Math.min(n >= 12 ? 3 : 2, Math.floor((n - 1) / 2)));
     const wt = minW + Math.floor(Math.random() * (maxW - minW + 1));
     const cub = wt >= 2 && Math.random() < 0.4;
     R.werewolf = cub ? wt - 1 : wt;
@@ -1133,43 +1137,66 @@ function autoBalanceRoles() {
   const evalCand = R => {
     const old = S.setup.roles;
     S.setup.roles = R;
-    const ok = canStart() && balanceWarnings().length === 0;
-    const sc = balanceScore();
-    const sig = rolesSig(R);
-    S.setup.roles = old;
-    return ok ? {R, sc, sig} : null;
-  };
-  const cands = [];
-  for (let i = 0; i < 60; i++) {
-    const c = evalCand(buildCandidate());
-    if (c) cands.push(c);
-  }
-  if (cands.length) {
-    let minAbs = Infinity;
-    for (const c of cands) minAbs = Math.min(minAbs, Math.abs(c.sc));
-    const thr = Math.max(minAbs, 2);
-    const inThr = cands.filter(c => Math.abs(c.sc) <= thr);
-    const excluded = new Set([prevSig, lastAutoSig]);
-    let elig = inThr.filter(c => !excluded.has(c.sig));
-    if (!elig.length) elig = inThr;
-    if (!elig.length) elig = cands;
-    const pick = elig[Math.floor(Math.random() * elig.length)];
-    S.setup.roles = pick.R;
-  }
-  let sig = rolesSig(S.setup.roles);
-  if (sig === prevSig || (lastAutoSig && sig === lastAutoSig)) {
-    const un = n - totalRoles();
-    const options = [];
-    for (let k = 0; k < un; k++) {
-      const trial = {...S.setup.roles, villager: k};
-      const sg = rolesSig(trial);
-      if (sg !== prevSig && sg !== lastAutoSig) options.push(trial);
+    try {
+      if (!(canStart() && balanceWarnings().length === 0)) return null;
+      return {R, sc: balanceScore(), sig: rolesSig(R)};
+    } finally {
+      S.setup.roles = old;
     }
-    if (options.length) S.setup.roles = options[Math.floor(Math.random() * options.length)];
+  };
+  const bySig = new Map();
+  for (let i = 0; i < 120 && bySig.size < 48; i++) {
+    const c = evalCand(buildCandidate());
+    if (c && !bySig.has(c.sig)) bySig.set(c.sig, c);
   }
-  lastAutoSig = rolesSig(S.setup.roles);
+  const cands = [...bySig.values()];
+  if (cands.length) {
+    if (autoHist.n !== n) autoHist = {n, sigs: []};
+    const maxHist = Math.min(cands.length, 24);
+    const hist = autoHist.sigs.slice();
+    let pick = null;
+    while (!pick) {
+      const excl = new Set([prevSig, ...hist]);
+      for (const band of [2, 3, 4]) {
+        const fresh = cands.filter(c => Math.abs(c.sc) <= band && !excl.has(c.sig));
+        if (fresh.length) {
+          pick = fresh[Math.floor(Math.random() * fresh.length)];
+          break;
+        }
+      }
+      if (!pick) {
+        if (!hist.length) {
+          const alt = cands.filter(c => Math.abs(c.sc) <= 2 && c.sig !== prevSig);
+          pick = alt.length ? alt[Math.floor(Math.random() * alt.length)] : cands[0];
+          break;
+        }
+        hist.shift();
+      }
+    }
+    S.setup.roles = pick.R;
+    autoHist.sigs.push(pick.sig);
+    while (autoHist.sigs.length > maxHist) autoHist.sigs.shift();
+  }
   vibrate(15);
   render();
+}
+function summaryStats() {
+  const chosen = totalRoles();
+  const auto = Math.max(0, villagerCount());
+  const tv = totalVillagers();
+  const cnt = grp => grp.reduce((s, r) => s + (S.setup.roles[r] || 0), 0);
+  const wolf = cnt(WOLF_GROUP);
+  const village = cnt(VILLAGE_GROUP) + auto;
+  const neutral = cnt(NEUTRAL_GROUP);
+  const bs = balanceScore();
+  const verdict = Math.abs(bs) <= 2 ? 'ใกล้สมดุล ✓' : bs > 0 ? 'ฝั่งชาวบ้านได้เปรียบ' : 'ฝั่งหมาป่าได้เปรียบ';
+  const n = S.setup.n;
+  const fillLine =
+    auto > 0
+      ? `ครบทั้ง ${n} / ${n} คน ✓ · เลือกเอง ${chosen} · เติมชาวบ้านอัตโนมัติ ${auto} · ชาวบ้านรวม ${tv} คน`
+      : `ครบทั้ง ${n} / ${n} คน ✓ · กำหนดเองทั้งหมด · ชาวบ้านรวม ${tv} คน`;
+  const factionLine = `🐺 ฝ่ายหมาป่า ${wolf} · 🔵 ฝ่ายชาวบ้าน ${village} · ⚫ อิสระ ${neutral}`;
+  return {n, chosen, auto, tv, wolf, village, neutral, bs, verdict, fillLine, factionLine};
 }
 function buildRoleSummaryText() {
   const L = [];
@@ -1188,11 +1215,12 @@ function buildRoleSummaryText() {
     VILLAGE_GROUP.filter(r => r !== 'villager')
   );
   grp('⚫ ฝ่ายอิสระ:', NEUTRAL_GROUP);
-  const tv = totalVillagers();
-  if (tv > 0) L.push('👤 ชาวบ้าน ×' + tv);
+  const st = summaryStats();
+  if (st.tv > 0) L.push('👤 ชาวบ้าน ×' + st.tv);
   L.push('');
-  const bs = balanceScore();
-  L.push('📊 คะแนนสมดุล: ' + (bs >= 0 ? '+' : '') + bs);
+  L.push(st.fillLine);
+  L.push(st.factionLine);
+  L.push('📊 คะแนนสมดุล: ' + (st.bs >= 0 ? '+' + st.bs : String(st.bs)) + ' · ' + st.verdict);
   return L.join('\n');
 }
 async function confirmStartGame() {
@@ -3244,11 +3272,10 @@ function roleSummaryCard() {
   const wolfRows = grpRows(WOLF_GROUP);
   const villageRows = grpRows(VILLAGE_GROUP.filter(r => r !== 'villager'));
   const neutralRows = grpRows(NEUTRAL_GROUP);
-  const tv = totalVillagers();
-  const villagerRow = tv > 0 ? `<div class="sum-row"><span class="sum-name">👤 ชาวบ้าน (Villager)</span><span class="sum-cnt">×${tv}</span></div>` : '';
-  const bs = balanceScore();
-  const bsCls = Math.abs(bs) <= 2 ? 'ok' : bs > 0 ? 'wr' : 'dg';
-  if (totalRoles() === 0 && tv === 0) return '';
+  const st = summaryStats();
+  const villagerRow = st.tv > 0 ? `<div class="sum-row"><span class="sum-name">👤 ชาวบ้าน (Villager)</span><span class="sum-cnt">×${st.tv}</span></div>` : '';
+  const bsCls = Math.abs(st.bs) <= 2 ? 'ok' : st.bs > 0 ? 'wr' : 'dg';
+  if (totalRoles() === 0 && st.tv === 0) return '';
   return `<div class="card sum-card">
     <h3>📋 สรุปบทบาทในเกม</h3>
     <div class="sum-grid">
@@ -3256,8 +3283,9 @@ function roleSummaryCard() {
       ${villageRows || villagerRow ? `<div class="sum-faction"><div class="eyebrow">🔵 ฝ่ายชาวบ้าน</div>${villageRows}${villagerRow}</div>` : ''}
       ${neutralRows ? `<div class="sum-faction"><div class="eyebrow">⚫ ฝ่ายอิสระ</div>${neutralRows}</div>` : ''}
     </div>
-    <div class="sum-total">กำหนดแล้ว ${totalRoles()} / ${S.setup.n} คน · ชาวบ้านทั้งหมด ${tv} คน</div>
-    <div class="sum-balance nt ${bsCls} sm">📊 คะแนนสมดุล: <b>${bs >= 0 ? '+' + bs : bs}</b></div>
+    <div class="sum-total" data-total="${st.n}" data-chosen="${st.chosen}" data-auto="${st.auto}" data-villagers="${st.tv}">${st.fillLine}</div>
+    <div class="sum-stats" data-wolf="${st.wolf}" data-village="${st.village}" data-neutral="${st.neutral}">${st.factionLine}</div>
+    <div class="sum-balance nt ${bsCls} sm" data-score="${st.bs}">📊 คะแนนสมดุล: <b>${st.bs >= 0 ? '+' + st.bs : st.bs}</b> · ${st.verdict}</div>
   </div>`;
 }
 function renderSetup() {

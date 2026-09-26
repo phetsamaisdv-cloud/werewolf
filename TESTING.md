@@ -14,7 +14,7 @@ npm test          # หรือ: node test/smoke.mjs
 ```
 
 - ไม่ต้องติดตั้ง dependency — ใช้ Node http server + Chrome DevTools Protocol ตรง ๆ (ต้องมี Chrome/Edge)
-- ครอบคลุม **76 checks**: boot/theme/setup/manual assign/reveal/เล่นจบเกมครบทุกเฟส/boss ทุกบทบาท,
+- ครอบคลุม **78 checks**: boot/theme/setup/manual assign/reveal/เล่นจบเกมครบทุกเฟส/boss ทุกบทบาท,
   บันทึก-เล่นต่อ (reload กลางเกม), undo แขวนคอ, moderator panel, history, XSS, จับเวลา,
   dialog ของแอปแทน native `confirm()`/`alert()`, PWA (SW + cache + ออฟไลน์),
   save schema migration (`migrateSave`), เตือนตอนบันทึกไม่สำเร็จ,

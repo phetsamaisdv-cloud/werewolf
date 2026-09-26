@@ -500,8 +500,9 @@ async function main() {
           const b = rolesSig(S.setup.roles);
           autoBalanceRoles();
           const c = rolesSig(S.setup.roles);
-          if (!(a !== b && b !== c)) rep.push(n + ':' + a + ' | ' + b + ' | ' + c);
+          if (!(a !== b && b !== c && a !== c)) rep.push(n + ':' + a + ' | ' + b + ' | ' + c);
         }
+        const trimOk = SPECIAL.every(r => TRIM_ORDER.includes(r));
         S.setup.n = 8;
         S.setup.roles = zeroRoles();
         S.setup.roles.werewolf = 2; S.setup.roles.seer = 1;
@@ -510,6 +511,16 @@ async function main() {
         const plusWorks = !!villBtn && !villBtn.disabled;
         const sumHtml = roleSummaryCard();
         const hasSummary = sumHtml.includes('สรุปบทบาท') && sumHtml.includes('ชาวบ้าน');
+        const attr = k => Number(((sumHtml.match(new RegExp('data-' + k + '="(-?\\\\d+)"')) || [])[1]));
+        const rowSum = [...sumHtml.matchAll(/class="sum-cnt">×(\\d+)/g)].reduce((s, m) => s + Number(m[1]), 0);
+        const sumConsistent =
+          attr('total') === S.setup.n &&
+          attr('chosen') + attr('auto') === attr('total') &&
+          attr('villagers') === totalVillagers() &&
+          rowSum === attr('total') &&
+          attr('wolf') + attr('village') + attr('neutral') === attr('total') &&
+          attr('score') === balanceScore() &&
+          sumHtml.includes('ครบทั้ง');
         const sumTxt = buildRoleSummaryText();
         const hasTxt = sumTxt.includes('ฝ่ายหมาป่า') && sumTxt.includes('คะแนนสมดุล');
         const img = document.querySelector('.role-card .rimg-large');
@@ -528,7 +539,7 @@ async function main() {
         S.ui.assign = oldAssign;
         S.setup.n = snap.n; S.setup.roles = snap.roles; S.setup.assignMode = snap.mode;
         render();
-        return {singleHasVillager, villCnt, plusWorks, bad, scoreBad, rep, hasSummary, hasTxt, imgOk, gridCols, descOk, deckVill, manualValid};
+        return {singleHasVillager, villCnt, plusWorks, bad, scoreBad, rep, trimOk, hasSummary, sumConsistent, hasTxt, imgOk, gridCols, descOk, deckVill, manualValid};
       })()`)) || {};
     const gridCssOk = await ev(
       `fetch('styles.css').then(r => r.text()).then(t => { const m = t.match(/\\.role-grid\\s*\\{[^}]*\\}/); return !!m && m[0].includes('repeat(2'); })`
@@ -546,9 +557,15 @@ async function main() {
       JSON.stringify(featInfo.scoreBad || [])
     );
     check(
-      'S3c กดสุ่มซ้ำ 3 ครั้ง x 4/8/12/18 คน: ผลลัพธ์ต่างกันทุกครั้ง',
+      'S3c กดสุ่มซ้ำ 3 ครั้ง x 4/8/12/18 คน: ผลลัพธ์ต่างกันทั้งคู่ (a≠b≠c≠a)',
       Array.isArray(featInfo.rep) && featInfo.rep.length === 0,
       JSON.stringify(featInfo.rep || [])
+    );
+    check('S3c TRIM_ORDER ครอบคลุมทุกบทบาท (30/30)', featInfo.trimOk === true, JSON.stringify(featInfo.trimOk));
+    check(
+      'S3c การ์ดสรุปสอดคล้องกัน (แถวรวม=n · เลือก+อัตโนมัติ=n · รายฝ่าย=n · score=balanceScore)',
+      featInfo.sumConsistent === true,
+      JSON.stringify({sumConsistent: featInfo.sumConsistent})
     );
     check('S3c การ์ดสรุปบทบาท + ข้อความสรุปก่อนเริ่มเกม', featInfo.hasSummary === true && featInfo.hasTxt === true, JSON.stringify(featInfo));
     check(

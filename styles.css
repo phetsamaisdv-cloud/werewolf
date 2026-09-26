@@ -761,6 +761,12 @@ body.light .btn.p {
   color: var(--text);
   text-align: center;
 }
+.sum-stats {
+  margin-top: 5px;
+  font-size: 13px;
+  color: var(--muted);
+  text-align: center;
+}
 .sum-balance {
   margin-top: 8px;
   text-align: center;
