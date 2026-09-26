@@ -3,7 +3,7 @@
    (ถ้า reject → navigation ทั้งหน้าล่มเป็น ERR_FAILED) */
 'use strict';
 
-const VERSION = 'v2.4.3';
+const VERSION = 'v2.5.0';
 const CACHE = 'werewolf-shell-' + VERSION;
 const NAV_TIMEOUT_MS = 5000;
 
@@ -22,7 +22,36 @@ const CORE_ASSETS = [
   './icons/icon-maskable-192.png',
   './icons/icon-maskable-512.png',
   './icons/icon-180.png',
-  './PROJECT.md'
+  './assets/roles/apprentice_seer.jpg',
+  './assets/roles/bodyguard.jpg',
+  './assets/roles/cult_leader.jpg',
+  './assets/roles/cupid.jpg',
+  './assets/roles/cursed.jpg',
+  './assets/roles/ghost.jpg',
+  './assets/roles/grandma.jpg',
+  './assets/roles/hoodlum.jpg',
+  './assets/roles/hunter.jpg',
+  './assets/roles/infected.jpg',
+  './assets/roles/lone_wolf.jpg',
+  './assets/roles/lycan.jpg',
+  './assets/roles/mayor.jpg',
+  './assets/roles/minion.jpg',
+  './assets/roles/pacifist.jpg',
+  './assets/roles/pi.jpg',
+  './assets/roles/priest.jpg',
+  './assets/roles/prince.jpg',
+  './assets/roles/seer.jpg',
+  './assets/roles/sorceress.jpg',
+  './assets/roles/spellcaster.jpg',
+  './assets/roles/tanner.jpg',
+  './assets/roles/tough_guy.jpg',
+  './assets/roles/troublemaker.jpg',
+  './assets/roles/vampire.jpg',
+  './assets/roles/villager.jpg',
+  './assets/roles/virginia_woolf.jpg',
+  './assets/roles/werewolf.jpg',
+  './assets/roles/witch.jpg',
+  './assets/roles/wolfcub.jpg'
 ];
 
 /* ---------- helpers: จับ error ทุกจุด ห้ามให้ reject ---------- */
@@ -150,17 +179,18 @@ async function handleAsset(request) {
 /* ---------- lifecycle ---------- */
 
 self.addEventListener('install', function (event) {
+  /* precache ทั้งชุดแบบ strict — ถ้าไฟล์ใดหาย/cdn ล่ม ให้ install ล้มเหลว
+     เพื่อให้เบราว์เซอร์ลองใหม่ครั้งถัดไป แทนที่จะเงียบหายแล้ว offline พัง */
   event.waitUntil(
     caches
       .open(CACHE)
       .then(function (cache) {
-        return Promise.allSettled(
+        return Promise.all(
           CORE_ASSETS.map(function (url) {
             return cache.add(url);
           })
         );
       })
-      .catch(function () {})
       .then(function () {
         return self.skipWaiting();
       })

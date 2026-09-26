@@ -129,6 +129,9 @@ const WINNER_LABEL = {
 const LOGO_IMG = '<img class="wolf-logo" src="assets/logo.png" alt="โลโก้คืนหอนหลอนหมาป่า" width="512" height="512">';
 const HERO_IMG = '<img src="assets/hero.png" alt="" width="1200" height="630" decoding="async">';
 
+/* คำสำหญเบาะแสผี — คัดคำที่ไม่มีสระบน/วรรณยุกต์ จะได้เผยทีละตัวอักษรแล้วอ่านออก */
+const GHOST_WORDS = ['ปลา', 'เป็ด', 'นก', 'แมว', 'ควาย', 'ลม', 'ไฟ', 'ดิน', 'เมฆ', 'ทะเล', 'หมา', 'ตา', 'ปาก', 'เขา', 'นา', 'บ่อ', 'ดาว'];
+
 /* ========== STATE ========== */
 function newUI() {
   return {
@@ -162,9 +165,8 @@ function newUI() {
     preExecuteSnap: null
   };
 }
-const S = {
-  screen: 'home',
-  setup: {
+function defaultSetup() {
+  return {
     n: 8,
     names: ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'],
     roles: {
@@ -204,7 +206,11 @@ const S = {
     haptic: true,
     sound: true,
     assignMode: 'random'
-  },
+  };
+}
+const S = {
+  screen: 'home',
+  setup: defaultSetup(),
   g: null,
   ui: newUI()
 };
@@ -257,6 +263,17 @@ function vibrate(pattern) {
     if (navigator.vibrate) navigator.vibrate(pattern);
   } catch (e) {}
 }
+/* ประกาศสำหรับ screen reader — ใช้ region คงที่นอก #app (ไม่ถูกทำลายตอน re-render) */
+function announce(msg) {
+  try {
+    const el = document.getElementById('srLive');
+    if (!el) return;
+    el.textContent = '';
+    setTimeout(() => {
+      el.textContent = msg;
+    }, 30);
+  } catch (e) {}
+}
 const IN_GAME_PHASES = ['night', 'dawn', 'hunter', 'day', 'voting', 'tie', 'execution', 'reveal', 'prince'];
 
 /* ========== WAKE LOCK ========== */
@@ -292,7 +309,7 @@ function popLastLog(prefix) {
   if (!S.g || !S.g.log || !S.g.log.length) return;
   for (let i = S.g.log.length - 1; i >= 0; i--) {
     const e = S.g.log[i];
-    if (e && e.msg && e.msg.startsWith(prefix)) {
+    if (e && e.msg && e.round === S.g.round && e.msg.startsWith(prefix)) {
       S.g.log.splice(i, 1);
       return;
     }
@@ -301,6 +318,7 @@ function popLastLog(prefix) {
 
 /* ========== THEME ========== */
 function applyTheme() {
+  const keepOvLock = document.body.classList.contains('ov-open');
   document.body.className = '';
   let useLight = false;
   if (S.setup.theme === 'light') useLight = true;
@@ -310,6 +328,12 @@ function applyTheme() {
   if (useLight) document.body.classList.add('light');
   if (S.setup.fontSize === 'large') document.body.classList.add('fs-l');
   else if (S.setup.fontSize === 'xlarge') document.body.classList.add('fs-xl');
+  if (keepOvLock) document.body.classList.add('ov-open');
+  try {
+    document.documentElement.style.colorScheme = useLight ? 'light' : 'dark';
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', useLight ? '#f6f6f8' : '#0a0a0f');
+  } catch (e) {}
 }
 
 /* ========== SAVE / LOAD ========== */
@@ -322,18 +346,81 @@ function saveKey() {
 }
 function slotState(i) {
   try {
-    const raw = localStorage.getItem(slotKeyFor(i));
-    if (!raw) return 'empty';
+    const key = slotKeyFor(i);
+    const raw = localStorage.getItem(key);
+    if (!raw) {
+      let hasBak = false;
+      try {
+        hasBak = !!localStorage.getItem(key + CORRUPT_SUFFIX);
+      } catch (e) {}
+      return hasBak ? 'corrupt' : 'empty';
+    }
     const d = JSON.parse(raw);
-    if (d && d.g && d.g.players && d.g.players.length) return d.g.winner ? 'ended' : 'game';
+    if (!d || typeof d !== 'object') return 'corrupt';
+    if (d.g && d.g.players && d.g.players.length) return d.g.winner ? 'ended' : 'game';
     const eff = (d && (d.resumeScreen || d.screen)) || null;
     if (eff === 'assign' && d.ui && d.ui.assign && Object.keys(d.ui.assign).length) return 'assign';
     return 'empty';
   } catch (e) {
-    return 'empty';
+    return 'corrupt';
   }
 }
-const SLOT_LABEL = {game: 'มีเกม', ended: 'จบแล้ว', assign: 'จัดบทบาท', empty: 'ว่าง'};
+const SLOT_LABEL = {game: 'มีเกม', ended: 'จบแล้ว', assign: 'จัดบทบาท', empty: 'ว่าง', corrupt: '⚠ เสียหาย'};
+function slotHasBackup(i) {
+  try {
+    return !!localStorage.getItem(slotKeyFor(i) + CORRUPT_SUFFIX);
+  } catch (e) {
+    return false;
+  }
+}
+async function restoreCorruptSlot(i) {
+  const key = slotKeyFor(i);
+  let raw = null;
+  try {
+    raw = localStorage.getItem(key + CORRUPT_SUFFIX);
+  } catch (e) {}
+  if (!raw) {
+    await askAlert('ไม่พบข้อมูลสำรองของช่อง ' + i, 'กู้คืนสำรอง');
+    render();
+    return;
+  }
+  try {
+    JSON.parse(raw);
+  } catch (e) {
+    await askAlert('ข้อมูลสำรองเสียหายเอง — ไฟล์เปิดอ่านไม่ได้ ระบบกู้คืนให้ไม่ได้', 'กู้คืนสำรอง');
+    return;
+  }
+  if (!(await askConfirm('กู้คืนข้อมูลสำรองลงช่อง ' + i + '?\n\nข้อมูลปัจจุบันในช่องนี้ (ถ้ามี) จะถูกแทนที่', 'กู้คืนสำรอง', {okLabel: 'กู้คืน'}))) return;
+  try {
+    localStorage.setItem(key, raw);
+    localStorage.removeItem(key + CORRUPT_SUFFIX);
+  } catch (e) {
+    await askAlert('กู้คืนไม่สำเร็จ — พื้นที่จัดเก็บอาจเต็ม', 'กู้คืนสำรอง');
+    return;
+  }
+  if (CORRUPT_BLOCK_KEY === key) CORRUPT_BLOCK_KEY = null;
+  if (i === ACTIVE_SLOT) {
+    S.g = null;
+    S.ui = newUI();
+    load(false);
+    S.screen = 'home';
+  }
+  vibrate(15);
+  render();
+}
+async function discardCorruptBackup(i) {
+  const key = slotKeyFor(i);
+  const hasBak = slotHasBackup(i);
+  const msg = hasBak ? 'ลบข้อมูลสำรองของช่อง ' + i + '?' : 'ลบข้อมูลที่เสียหายในช่อง ' + i + '?';
+  if (!(await askConfirm(msg + '\n\nการดำเนินการนี้ลบถาวรและกู้คืนไม่ได้', 'ยืนยันการลบ', {danger: true, okLabel: 'ลบ'}))) return;
+  try {
+    localStorage.removeItem(key + CORRUPT_SUFFIX);
+    if (!hasBak) localStorage.removeItem(key);
+  } catch (e) {}
+  if (CORRUPT_BLOCK_KEY === key) CORRUPT_BLOCK_KEY = null;
+  vibrate(15);
+  render();
+}
 function initSlots() {
   try {
     const v = parseInt(localStorage.getItem(SLOT_IDX_KEY), 10);
@@ -360,9 +447,14 @@ function switchSlot(i) {
   }
   S.g = null;
   S.ui = newUI();
-  load(false);
-  const cur = S.screen;
-  if (cur && cur !== 'home' && cur !== 'end') S.ui.resumeScreen = cur;
+  S.setup = defaultSetup();
+  const ok = load(false);
+  if (ok) {
+    const cur = S.screen;
+    if (cur && cur !== 'home' && cur !== 'end') S.ui.resumeScreen = cur;
+  } else {
+    S.ui.resumeScreen = null;
+  }
   S.screen = 'home';
   vibrate(10);
   render();
@@ -381,13 +473,14 @@ function warnSaveFailed(e) {
   }, 0);
 }
 function save() {
+  if (CORRUPT_BLOCK_KEY && saveKey() === CORRUPT_BLOCK_KEY) return true;
   try {
     localStorage.setItem(
       saveKey(),
       JSON.stringify({
         screen: S.screen,
         g: S.g,
-        ui: S.ui,
+        ui: Object.assign({}, S.ui, {preExecuteSnap: null}),
         setup: S.setup,
         ver: VER,
         schema: SAVE_SCHEMA,
@@ -415,6 +508,12 @@ function migrateSave(d) {
       const cnt = Number(d.setup.roles[oldRole]) || 0;
       if (cnt > 0) d.setup.roles.villager = (Number(d.setup.roles.villager) || 0) + cnt;
       delete d.setup.roles[oldRole];
+      if (d.g && Array.isArray(d.g.players)) {
+        for (const p of d.g.players) if (p && p.roleId === oldRole) p.roleId = 'villager';
+      }
+      if (d.ui && d.ui.assign && typeof d.ui.assign === 'object') {
+        for (const k in d.ui.assign) if (d.ui.assign[k] === oldRole) d.ui.assign[k] = 'villager';
+      }
     }
   }
   if (d.g && d.g.night) delete d.g.night.doctorTarget;
@@ -466,10 +565,41 @@ function migrateSave(d) {
   d.schema = SAVE_SCHEMA;
   return d;
 }
-function load(useResume) {
+const CORRUPT_SUFFIX = ':corrupt';
+let CORRUPT_BLOCK_KEY = null;
+let CORRUPT_ALERT_PENDING = false;
+function backupCorruptSave(raw) {
+  if (raw == null) return;
+  let ok = false;
   try {
-    const raw = localStorage.getItem(saveKey());
-    if (!raw) return false;
+    localStorage.setItem(saveKey() + CORRUPT_SUFFIX, raw);
+    ok = true;
+  } catch (e) {}
+  if (ok) {
+    try {
+      localStorage.removeItem(saveKey());
+    } catch (e) {}
+    CORRUPT_BLOCK_KEY = saveKey();
+  }
+  CORRUPT_ALERT_PENDING = true;
+  setTimeout(() => {
+    CORRUPT_ALERT_PENDING = false;
+    askAlert(
+      'ข้อมูลในช่องบันทึกนี้เสียหาย เปิดอ่านไม่ได้\n\nระบบสำรองข้อมูลเดิมไว้ให้แล้ว — กู้คืนหรือลบได้จากแท็ก "⚠ เสียหาย" ในแถวเลือกช่องบันทึก\n\nหากไม่ทำอะไร ช่องนี้จะกลายเป็นช่องว่างและใช้เล่นเกมใหม่ได้ตามปกติ',
+      '⚠️ ข้อมูลบันทึกเสียหาย'
+    ).catch(() => {});
+  }, 0);
+}
+function load(useResume) {
+  let raw = null;
+  try {
+    raw = localStorage.getItem(saveKey());
+    if (!raw) {
+      try {
+        if (localStorage.getItem(saveKey() + CORRUPT_SUFFIX)) CORRUPT_BLOCK_KEY = saveKey();
+      } catch (e) {}
+      return false;
+    }
     const d = migrateSave(JSON.parse(raw));
     if (d.setup) {
       Object.assign(S.setup, d.setup);
@@ -507,6 +637,10 @@ function load(useResume) {
     }
     return true;
   } catch (e) {
+    backupCorruptSave(raw);
+    S.g = null;
+    S.ui = newUI();
+    S.screen = 'home';
     return false;
   }
 }
@@ -555,6 +689,10 @@ async function clearSave() {
   try {
     localStorage.removeItem(saveKey());
   } catch (e) {}
+  try {
+    localStorage.removeItem(saveKey() + CORRUPT_SUFFIX);
+  } catch (e) {}
+  if (CORRUPT_BLOCK_KEY === saveKey()) CORRUPT_BLOCK_KEY = null;
   S.g = null;
   S.ui = newUI();
   S.screen = 'home';
@@ -564,7 +702,7 @@ async function clearSave() {
 }
 async function continueGame() {
   if (!load(true)) {
-    await askAlert('ไม่พบข้อมูลเก่า');
+    if (!CORRUPT_ALERT_PENDING) await askAlert('ไม่พบข้อมูลเก่า');
     return;
   }
   if (S.g && S.setup.keepAwake) requestWake();
@@ -582,7 +720,7 @@ async function confirmLeaveGame() {
   releaseWake();
   if (!isEnded && IN_GAME_PHASES.includes(S.screen)) {
     S.ui.resumeScreen = S.screen;
-  } else {
+  } else if (!(S.g && !S.g.winner)) {
     S.ui.resumeScreen = null;
   }
   S.screen = 'home';
@@ -591,9 +729,9 @@ async function confirmLeaveGame() {
 }
 function goHome() {
   const isEnded = S.g && S.g.winner;
-  if (!isEnded && S.g && IN_GAME_PHASES.includes(S.screen)) {
+  if (!isEnded && IN_GAME_PHASES.includes(S.screen)) {
     S.ui.resumeScreen = S.screen;
-  } else {
+  } else if (!(S.g && !S.g.winner)) {
     S.ui.resumeScreen = null;
   }
   stopT();
@@ -801,12 +939,14 @@ function incRole(r) {
   if (SINGLETON_ROLES.includes(r) && (S.setup.roles[r] || 0) >= 1) return;
   S.setup.roles[r] = (S.setup.roles[r] || 0) + 1;
   vibrate(10);
+  announce((ROLES[r] ? ROLES[r].name : r) + ' ' + S.setup.roles[r]);
   render();
 }
 function decRole(r) {
   if ((S.setup.roles[r] || 0) <= 0) return;
   S.setup.roles[r] = S.setup.roles[r] - 1;
   vibrate(10);
+  announce((ROLES[r] ? ROLES[r].name : r) + ' ' + S.setup.roles[r]);
   render();
 }
 function toggleSetup(k) {
@@ -1004,20 +1144,37 @@ async function deleteCustomPreset(id) {
   writePresets(arr.filter(x => x.id !== id));
   render();
 }
+function wolfFactionCount() {
+  let c = 0;
+  for (const r of SPECIAL) {
+    const n = S.setup.roles[r] || 0;
+    if (n > 0 && ROLES[r] && ROLES[r].faction === 'wolf') c += n;
+  }
+  return c;
+}
+function instantParityWin() {
+  const wf = wolfFactionCount();
+  const v = S.setup.n - wf;
+  if (wf < v) return false;
+  const hasLone = (S.setup.roles.lone_wolf || 0) > 0;
+  return !(hasLone && v > 0);
+}
 function canStart() {
   if (totalRoles() > S.setup.n) return false;
-  const w = S.setup.roles.werewolf + S.setup.roles.wolfcub;
-  const v = S.setup.n - w;
-  return w >= 1 && w < v && villagerCount() >= 0;
+  const killers = (S.setup.roles.werewolf || 0) + (S.setup.roles.wolfcub || 0);
+  if (killers < 1) return false;
+  return !instantParityWin();
 }
 function balanceWarnings() {
   const msgs = [];
   const w = S.setup.roles.werewolf + S.setup.roles.wolfcub;
+  const wf = wolfFactionCount();
   const cursed = S.setup.roles.cursed;
   const infected = S.setup.roles.infected;
-  const v = S.setup.n - w;
+  const v = S.setup.n - wf;
   if (w === 0) msgs.push('⚠ ไม่มีหมาป่าในเกม → เกมจะจบทันที');
-  else if (w >= v) msgs.push('⚠ หมาป่ามากกว่าหรือเท่ากับชาวบ้าน → หมาป่าชนะทันที');
+  else if (instantParityWin()) msgs.push('⚠ ฝ่ายหมาป่าเท่าหรือมากกว่าชาวบ้าน → หมาป่าชนะทันที');
+  else if (wf >= v) msgs.push('⚠ ฝ่ายหมาป่ามากกว่าหรือเท่าชาวบ้าน — มีหมาป่าเดียวดายยื้อไว้ แต่แพ้ได้ทุกเมื่อ');
   else if (w === 1 && S.setup.n >= 10) msgs.push('💡 ผู้เล่น ' + S.setup.n + ' คน แนะนำหมาป่า 2-3 ตัว');
   else if (w >= 4) msgs.push('💡 หมาป่า 4+ ตัว อาจยากต่อชาวบ้าน');
   if (cursed > 0 && w === 0) msgs.push('💡 ผู้ต้องคำสาปต้องมีหมาป่าในเกมจึงจะทำงาน');
@@ -1242,7 +1399,8 @@ function startGame() {
   if (!canStart()) return;
   const deck = buildRandomDeck();
   if (S.setup.assignMode === 'manual') {
-    S.ui.assign = {};
+    S.g = null;
+    S.ui = newUI();
     for (let i = 0; i < S.setup.n; i++) S.ui.assign[i] = deck[i];
     S.screen = 'assign';
     vibrate([50, 30, 50]);
@@ -1312,7 +1470,9 @@ function createGameFromDeck(deck) {
     sorcChecks: [],
     vwTarget: null,
     hoodlumTargets: null,
-    forceVoteRound: null
+    forceVoteRound: null,
+    ghostWord: players.some(p => p.roleId === 'ghost') ? GHOST_WORDS[Math.floor(Math.random() * GHOST_WORDS.length)] : null,
+    ghostRevealed: 0
   };
   S.ui = newUI();
   S.screen = 'reveal';
@@ -1431,8 +1591,11 @@ function silencedPlayer() {
 function activeNRoles() {
   const set = {};
   const arr = alive();
-  const hasWolf = arr.some(p => isWolfTeam(p));
-  if (hasWolf) set.werewolf = 1;
+  /* การ์ดเลือกเหยื่อต้องมี "หมาป่าฆ่า" จริง — minion/นางปีศาจ alone ไม่ควรโชว์การ์ด */
+  const hasKillerWolf = arr.some(
+    p => p.roleId === 'werewolf' || p.roleId === 'wolfcub' || p.roleId === 'lone_wolf' || (p.roleId === 'cursed' && p.isTurned === true)
+  );
+  if (hasKillerWolf) set.werewolf = 1;
   if (seerPlayer()) set.seer = 1;
   if (arr.some(p => p.roleId === 'sorceress')) set.sorceress = 1;
   if (arr.some(p => p.roleId === 'bodyguard')) set.bodyguard = 1;
@@ -1740,7 +1903,10 @@ function confirmSorceress() {
 function confirmCult() {
   if (S.ui.tgts.length !== 1) return;
   const t = getP(S.ui.tgts[0]);
-  t.cult = true;
+  if (!t.cult) {
+    t.cult = true;
+    t.cultRound = S.g.round;
+  }
   S.ui.nDone.cult_leader = true;
   S.ui.nChosen.cult_leader = S.ui.tgts.slice();
   addLog('night', '🕯️ เจ้าลัทธิชวน ' + t.name + ' เข้าลัทธิ (' + cultCount() + ' คนแล้ว)');
@@ -1799,6 +1965,7 @@ function skipN() {
 function undoN(role) {
   if (!S.g || !S.g.night) return;
   const cfg = N_ACTIONS[role];
+  const undoChosen = S.ui.nChosen && Array.isArray(S.ui.nChosen[role]) ? S.ui.nChosen[role].slice() : [];
   S.ui.nDone[role] = false;
   S.ui.tgts = [];
   S.ui.piRes = null;
@@ -1827,9 +1994,10 @@ function undoN(role) {
     }
     popLastLog('🔮 นางปีศาจค้น');
   } else if (role === 'cult_leader') {
-    S.g.players.forEach(p => {
-      if (p.cult && p.roleId !== 'cult_leader') p.cult = false;
-    });
+    for (const cid of undoChosen) {
+      const cp = getP(cid);
+      if (cp && cp.roleId !== 'cult_leader' && cp.cultRound === S.g.round) cp.cult = false;
+    }
     popLastLog('🕯️ เจ้าลัทธิชวน');
   } else if (role === 'vampire') {
     S.g.night.biteTarget = null;
@@ -1968,8 +2136,8 @@ function undoSeer() {
     const last = S.g.seerChecks[S.g.seerChecks.length - 1];
     if (last.round === S.g.round) S.g.seerChecks.pop();
   }
-  popLastLog('🔮 เทพพยากรณ์ฝึกหัดตรวจ');
-  popLastLog('👁 เทพพยากรณ์ตรวจ');
+  popLastLog('🔮 เทพพยากรณ์ฝึกหัด ตรวจ');
+  popLastLog('👁 เทพพยากรณ์ ตรวจ');
   vibrate(15);
   render();
 }
@@ -2149,6 +2317,7 @@ async function endNight() {
     }
     if (p.roleId === 'infected') {
       S.g.wolvesInfectedRound = S.g.round + 1;
+      p.triggeredInfection = true;
       addLog('night', '🦠 ผู้ป่วยติดเชื้อ ' + p.name + ' ถูกกัด — หมาป่าจะติดเชื้อคืนถัดไป');
     }
     deaths.push(...killP(tid, 'night'));
@@ -2208,17 +2377,20 @@ async function endNight() {
   }
   markWolfCubDead(deaths);
 
-  const deadTanner = deaths.map(getP).find(p => p && p.roleId === 'tanner');
-  if (deadTanner) {
-    return endGame({winner: 'tanner', reason: 'ยาจกถูกกำจัดออกจากเกม'});
-  }
-
   const grandP = S.g.players.find(p => p.roleId === 'grandma');
   if (grandP && !grandP.alive && S.g.night.grandmaTarget !== null && S.g.night.grandmaTarget !== grandP.id) {
     const banP = getP(S.g.night.grandmaTarget);
     if (banP && banP.alive) {
       addLog('death', '👵 ยายแก่ตายก่อนรุ่งเช้า — แต่คำสั่งขับไล่ ' + banP.name + ' ยังมีผลในวันนี้');
     }
+  }
+
+  /* เบาะแสผี — ทุกรุ่งเช้าเผย 1 ตัวอักษร จนครบคำ */
+  const ghostP = S.g.players.find(p => p.roleId === 'ghost');
+  if (ghostP && !ghostP.alive && S.g.ghostWord && (S.g.ghostRevealed || 0) < S.g.ghostWord.length) {
+    const gi = S.g.ghostRevealed || 0;
+    S.g.ghostRevealed = gi + 1;
+    addLog('info', '👻 ผีส่งเบาะแส (' + S.g.ghostRevealed + '/' + S.g.ghostWord.length + '): ตัวอักษรที่ ' + (gi + 1) + ' = ' + S.g.ghostWord[gi]);
   }
 
   S.ui.deaths = deaths;
@@ -2253,6 +2425,14 @@ function hunterShoot(tid) {
   markWolfCubDead(killed);
   if (context === 'dawn') S.ui.deaths.push(...killed);
   else S.ui.exDeaths.push(...killed);
+  const shotTanner = killed.some(id => {
+    const p = getP(id);
+    return p && p.roleId === 'tanner';
+  });
+  if (shotTanner) {
+    endGame({winner: 'tanner', reason: 'ยาจกถูกกำจัดออกจากเกม'});
+    return;
+  }
   S.screen = context;
   vibrate([100, 50, 100]);
   render();
@@ -2273,6 +2453,8 @@ function goHunter() {
   render();
 }
 function fromDawn() {
+  const deadTanner = (S.ui.deaths || []).map(getP).find(p => p && p.roleId === 'tanner');
+  if (deadTanner) return endGame({winner: 'tanner', reason: 'ยาจกถูกกำจัดออกจากเกม'});
   const win = checkWin();
   if (win) return endGame(win);
   stopT();
@@ -2310,7 +2492,6 @@ function selectVoter(id) {
 }
 function selectTarget(id) {
   if (S.ui.vVoter === null || id === S.ui.vVoter) return;
-  if (id === getBanishedTarget()) return;
   S.ui.vTarget = id;
   vibrate(15);
   render();
@@ -2321,12 +2502,13 @@ function clearSel() {
   render();
 }
 function confirmVote() {
-  if (S.ui.vVoter === null || S.ui.vTarget === null) return;
+  if (S.ui.vVoter === null) return;
   const voter = getP(S.ui.vVoter);
   if (voter && voter.roleId === 'pacifist') {
     addLog('day', '☮️ ' + voter.name + ' (ผู้รักสันติ) โหวต "ไม่ฆ่า" เสมอ');
     S.ui.votes.push({voterId: S.ui.vVoter, targetId: null, skip: true});
   } else {
+    if (S.ui.vTarget === null) return;
     S.ui.votes.push({voterId: S.ui.vVoter, targetId: S.ui.vTarget, skip: false});
   }
   S.ui.vVoter = null;
@@ -2370,7 +2552,7 @@ async function resetVotes() {
 }
 function tally() {
   const t = {};
-  for (const p of dayAlive()) t[p.id] = 0;
+  for (const p of alive()) t[p.id] = 0;
   for (const v of S.ui.votes) {
     if (v.skip) continue;
     const voter = getP(v.voterId);
@@ -2565,11 +2747,13 @@ function readHistory() {
 function writeHistory(arr) {
   try {
     localStorage.setItem(HISTORY_KEY, JSON.stringify(arr.slice(0, 10)));
-  } catch (e) {}
+    return true;
+  } catch (e) {
+    return false;
+  }
 }
 function recordGameEnd(win) {
   if (!S.g || S.g.recordedEnd) return;
-  S.g.recordedEnd = true;
   try {
     const hist = readHistory();
     hist.unshift({
@@ -2580,7 +2764,8 @@ function recordGameEnd(win) {
       reason: win.reason || '',
       players: S.g.players.map(p => ({name: p.name, roleId: p.roleId, alive: p.alive}))
     });
-    writeHistory(hist);
+    if (!writeHistory(hist)) return;
+    S.g.recordedEnd = true;
   } catch (e) {}
 }
 function deleteHistoryItem(i) {
@@ -2813,6 +2998,12 @@ function showModPanel() {
         ' — เสียชีวิตคืนแรก (ยังให้เบาะแสได้)'
     );
   }
+  if (S.g.ghostWord && S.g.players.some(p => p.roleId === 'ghost')) {
+    const gp2 = S.g.players.find(p => p.roleId === 'ghost');
+    if (gp2 && !gp2.alive) {
+      statusItems.push('👻 เบาะแสผี (คำเต็ม): <b>' + esc(S.g.ghostWord) + '</b> — เผยแล้ว ' + (S.g.ghostRevealed || 0) + '/' + S.g.ghostWord.length);
+    }
+  }
   S.g.players
     .filter(p => p.roleId === 'prince' && p.princeUsed)
     .forEach(p => {
@@ -2822,11 +3013,11 @@ function showModPanel() {
 
   const rows = S.g.players
     .map(p => {
-      const R = ROLES[p.roleId];
+      const R = ROLES[p.roleId] || ROLES.villager;
       const flags = [];
       if (p.isLover) {
         const partner = getP(p.loverId);
-        flags.push('💘' + (partner ? partner.name : '?'));
+        flags.push('💘' + (partner ? esc(partner.name) : '?'));
       }
       if (p.isMayor) flags.push('🎖️');
       if (p.roleId === 'witch') {
@@ -2849,7 +3040,7 @@ function showModPanel() {
       if (p.roleId === 'pi' && p.usedPi) flags.push('🕵️✗');
       if (p.roleId === 'troublemaker' && p.usedTrouble) flags.push('🎭✗');
       if (p.roleId === 'apprentice_seer' && p.alive && !alive().some(x => x.roleId === 'seer')) flags.push('👁️ขั้นสูง');
-      if (!p.alive && p.roleId === 'infected' && S.g.wolvesInfectedRound !== null) {
+      if (!p.alive && p.roleId === 'infected' && p.triggeredInfection) {
         flags.push('🦠 ส่งเชื้อ');
       }
       if (!p.alive && p.roleId === 'prince' && !p.princeUsed) {
@@ -2920,24 +3111,47 @@ function showHistory() {
 }
 
 /* ========== SHEET MODAL ========== */
+let SHEET_RETURN_FOCUS = null;
 function openSheet(title, bodyHtml) {
   closeSheet();
+  const prevFocus = document.activeElement;
   const ov = document.createElement('div');
   ov.className = 'overlay';
   ov.id = 'sheetOverlay';
+  ov.setAttribute('role', 'dialog');
+  ov.setAttribute('aria-modal', 'true');
+  ov.setAttribute('aria-label', String(title));
   ov.onclick = e => {
     if (e.target === ov) closeSheet();
   };
   ov.innerHTML = `<div class="sheet">
-    <div class="sheet-head"><h3>${esc(title)}</h3><button class="x" onclick="closeSheet()">✕</button></div>
+    <div class="sheet-head"><h3>${esc(title)}</h3><button class="x" onclick="closeSheet()" aria-label="ปิด">✕</button></div>
     <div class="sheet-body">${bodyHtml}</div>
   </div>`;
   document.body.appendChild(ov);
+  document.body.classList.add('ov-open');
+  SHEET_RETURN_FOCUS = prevFocus;
+  const x = ov.querySelector('button');
+  if (x) x.focus();
 }
 function closeSheet() {
   const el = $('sheetOverlay');
   if (el) el.remove();
+  if (!document.querySelector('.overlay')) document.body.classList.remove('ov-open');
+  const rf = SHEET_RETURN_FOCUS;
+  SHEET_RETURN_FOCUS = null;
+  if (rf && rf.focus) {
+    try {
+      rf.focus();
+    } catch (e) {}
+  }
 }
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && !document.getElementById('dialogOverlay') && document.getElementById('sheetOverlay')) {
+    e.preventDefault();
+    closeSheet();
+  }
+});
 
 /* ========== DIALOG (แทน confirm / alert / prompt ของเบราว์เซอร์) ========== */
 let __dlgSettle = null;
@@ -3202,8 +3416,18 @@ function renderHome() {
           s => `
       <button class="chip${s.active ? ' sel' : ''}" style="flex:1" onclick="switchSlot(${s.i})">
         <div>${s.active ? '▶ ' : ''}ช่อง ${s.i}</div>
-        <div class="f13" style="font-weight:600;color:${s.state === 'game' ? 'var(--success)' : s.state === 'empty' ? 'var(--muted2)' : 'var(--muted)'}">${s.label}</div>
+        <div class="f13" style="font-weight:600;color:${s.state === 'game' ? 'var(--success)' : s.state === 'empty' ? 'var(--muted2)' : s.state === 'corrupt' ? 'var(--warning)' : 'var(--muted)'}">${s.label}</div>
       </button>`
+        )
+        .join('')}</div>`
+    : '';
+  const corruptSlots = slots.filter(s => s.state === 'corrupt');
+  const corruptBlock = corruptSlots.length
+    ? `<div class="row" style="margin-top:6px;flex-wrap:wrap">${corruptSlots
+        .map(s =>
+          slotHasBackup(s.i)
+            ? btn('กู้คืนช่อง ' + s.i, `restoreCorruptSlot(${s.i})`, {sm: 1}) + btn('ลบสำรองช่อง ' + s.i, `discardCorruptBackup(${s.i})`, {sm: 1, dg: 1})
+            : btn('ลบทิ้งช่อง ' + s.i, `discardCorruptBackup(${s.i})`, {sm: 1, dg: 1})
         )
         .join('')}</div>`
     : '';
@@ -3216,6 +3440,7 @@ function renderHome() {
       <div class="home-banner">${HERO_IMG}<div class="home-kicker"><span class="home-dot"></span> ผู้ดำเนินเกม (GM) MODE</div></div>
       ${saveBlock}
       ${slotBlock}
+      ${corruptBlock}
       <div class="home-copy">ทุกคืน ทุกโหวต ทุกบทบาท<br><span>จัดการเกมจากหน้าจอเดียว</span></div>
       <div class="home-actions">
         ${btn(hasAny ? 'เล่นเกมต่อ' : 'เริ่มเกมใหม่', hasAny ? 'continueGame()' : 'goSetup()', {p: 1})}
@@ -3308,7 +3533,7 @@ function renderSetup() {
       <div class="role-card__controls">
         <div class="cnt">
           <button class="cnt__btn" onclick="decRole('${r}')"${cnt <= 0 ? ' disabled' : ''} aria-label="ลดจำนวน">−</button>
-          <div class="cnt__value" aria-live="polite">${cnt}</div>
+          <div class="cnt__value">${cnt}</div>
           <button class="cnt__btn" onclick="incRole('${r}')"${plusDis ? ' disabled' : ''} aria-label="เพิ่มจำนวน">+</button>
         </div>
       </div>
@@ -3405,6 +3630,11 @@ function renderSetup() {
     </div>
     ${warnHtml}
     ${err}
+    <div class="card">
+      <h3>💾 ชุดบทบาทที่บันทึกไว้</h3>
+      <div class="mt">${btn('บันทึกชุดปัจจุบัน', 'savePreset()', {sm: 1, p: 1})}</div>
+      <div class="mt">${customRows}</div>
+    </div>
     ${roleSummaryCard()}
     ${btn('ยืนยันและเริ่มเกม', 'confirmStartGame()', {p: 1, dis: !canStart()})}
     ${manualHint}
@@ -4124,7 +4354,8 @@ function renderDay() {
     })
     .join('');
   const banishedP = banishedId !== null ? getP(banishedId) : null;
-  const banishedMsg = banishedP && banishedP.alive ? notice(`🚪 <b>${esc(banishedP.name)}</b> ถูกยายแก่ขับไล่ — ไม่มีสิทธิ์โหวตวันนี้`, 'wr', true) : '';
+  const banishedMsg =
+    banishedP && banishedP.alive ? notice(`🚪 <b>${esc(banishedP.name)}</b> ถูกยายแก่ขับไล่ — ไม่มีสิทธิ์โหวตวันนี้ แต่ถูกโหวตแขวนได้`, 'wr', true) : '';
   const silentP = S.g.night.silenceTarget !== null ? getP(S.g.night.silenceTarget) : null;
   const silenceMsg = silentP && silentP.alive ? notice(`🔇 <b>${esc(silentP.name)}</b> ถูกปิดปาก — ห้ามพูดตลอดวันนี้`, 'wr', true) : '';
   const forceVote = S.g.forceVoteRound === S.g.round;
@@ -4148,9 +4379,13 @@ function renderVoting() {
   const banishedId = getBanishedTarget();
   const arr = alive().filter(p => p.id !== banishedId);
   const banishedP = banishedId !== null ? getP(banishedId) : null;
-  const banishedMsg = banishedP && banishedP.alive ? notice(`🚪 <b>${esc(banishedP.name)}</b> ถูกขับไล่ — ไม่มีสิทธิ์โหวตวันนี้`, 'wr', true) : '';
+  const banishedMsg =
+    banishedP && banishedP.alive ? notice(`🚪 <b>${esc(banishedP.name)}</b> ถูกขับไล่ — โหวตเองไม่ได้ แต่ถูกโหวตเป็นเป้าได้`, 'wr', true) : '';
   const forceVote = S.g.forceVoteRound === S.g.round;
   const forceMsg = forceVote ? notice('🎭 <b>วันนี้บังคับโหวตทุกคน</b> — กดข้ามไม่ได้ (ตัวป่วนปลุกปั่น)', 'dg', true) : '';
+  const silenced = silencedPlayer();
+  const silencedId = silenced && silenced.alive ? silenced.id : null;
+  const silenceMsg = silencedId !== null ? notice(`🔇 <b>${esc(silenced.name)}</b> ถูกปิดปาก — ห้ามพูดตลอดวันนี้`, 'wr', true) : '';
   const voterP = S.ui.vVoter !== null ? getP(S.ui.vVoter) : null;
   const voterIsPacifist = !!(voterP && voterP.roleId === 'pacifist');
   const pacifistMsg = voterIsPacifist ? notice('☮️ ' + esc(voterP.name) + ' เป็นผู้รักสันติ — จะโหวต "ไม่ฆ่า" เสมอ', 'i', true) : '';
@@ -4167,7 +4402,8 @@ function renderVoting() {
       const skipped = vote && vote.skip;
       const mayor = p.isMayor ? ' 🎖️' : '';
       const mark = skipped ? ' 🚫' : '';
-      return chip(esc(p.name) + mayor + mark, {
+      const sil = p.id === silencedId ? ' 🔇' : '';
+      return chip(esc(p.name) + mayor + sil + mark, {
         sel: S.ui.vVoter === p.id,
         done: voted && !skipped,
         skip: skipped,
@@ -4179,10 +4415,11 @@ function renderVoting() {
   if (voterIsPacifist) targetChips = notice('☮️ ผู้รักสันติโหวต "ไม่ฆ่า" เสมอ — ไม่ต้องเลือกเป้าหมาย', 'i', true);
   else if (S.ui.vVoter === null) targetChips = notice('เลือกคนโหวตก่อน', 'i', true);
   else
-    targetChips = arr
+    targetChips = alive()
       .map(p => {
         const isSelf = S.ui.vVoter === p.id;
-        return chip(esc(p.name), {sel2: S.ui.vTarget === p.id, dis: isSelf, onclick: isSelf ? null : `selectTarget(${p.id})`});
+        const isBan = p.id === banishedId;
+        return chip(esc(p.name) + (isBan ? ' 🚪' : ''), {sel2: S.ui.vTarget === p.id, dis: isSelf, onclick: isSelf ? null : `selectTarget(${p.id})`});
       })
       .join('');
   let arrow;
@@ -4215,13 +4452,14 @@ function renderVoting() {
   const t = tally();
   const maxV = Math.max(0, ...Object.values(t));
   const tallyRows =
-    arr
+    alive()
       .filter(p => t[p.id] > 0)
       .sort((a, b) => t[b.id] - t[a.id])
       .map(p => {
         const isLead = t[p.id] === maxV && maxV > 0;
+        const banMark = p.id === banishedId ? ' 🚪' : '';
         return `<div class="vote-row${isLead ? ' lead' : ''}">
-      <div class="voter">${isLead ? '👑 ' : ''}${esc(p.name)}</div>
+      <div class="voter">${isLead ? '👑 ' : ''}${esc(p.name)}${banMark}</div>
       <div class="tally">${t[p.id]}</div>
     </div>`;
       })
@@ -4239,7 +4477,7 @@ function renderVoting() {
       <h2>โหวต</h2>
       <div class="round">วันที่ ${S.g.round}</div>
     </section>
-    ${banishedMsg}${forceMsg}${pacifistMsg}
+    ${banishedMsg}${silenceMsg}${forceMsg}${pacifistMsg}
     ${statusLine}
     <div class="card">
       <div class="arrow">${arrow}</div>
@@ -4447,6 +4685,8 @@ async function fallbackCopy(text) {
   }
   applyTheme();
   render();
+  /* กลับมาเปิดแอปค้างเกมค้างไว้ → ขอกันจอดับทันที (ไม่ต้องรอ continueGame) */
+  if (S.g && !S.g.winner && S.setup.keepAwake) requestWake();
 })();
 
 /* ========== PWA ========== */

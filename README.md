@@ -31,15 +31,15 @@ npm run serve
 
 ## คำสั่ง
 
-| คำสั่ง            | ทำอะไร                                                               |
-| ----------------- | -------------------------------------------------------------------- |
-| `npm run serve`   | dev server ที่ `127.0.0.1:8123` (ใช้ทดสอบ PWA/ออฟไลน์)               |
-| `npm test`        | E2E **78 checks** ผ่าน Chrome DevTools Protocol (ต้องมี Chrome/Edge) |
-| `npm run check`   | `eslint .` + `prettier --check .` — รันก่อน commit เสมอ              |
-| `npm run lint`    | ESLint อย่างเดียว                                                    |
-| `npm run format`  | Prettier เขียนทับไฟล์ที่ format ไม่ตรง                               |
-| `npm run preview` | `wrangler dev` — จำลอง Workers บนเครื่อง                             |
-| `npm run deploy`  | deploy ขึ้น Cloudflare Workers                                       |
+| คำสั่ง            | ทำอะไร                                                                |
+| ----------------- | --------------------------------------------------------------------- |
+| `npm run serve`   | dev server ที่ `127.0.0.1:8123` (ใช้ทดสอบ PWA/ออฟไลน์)                |
+| `npm test`        | E2E **101 checks** ผ่าน Chrome DevTools Protocol (ต้องมี Chrome/Edge) |
+| `npm run check`   | `eslint .` + `prettier --check .` — รันก่อน commit เสมอ               |
+| `npm run lint`    | ESLint อย่างเดียว                                                     |
+| `npm run format`  | Prettier เขียนทับไฟล์ที่ format ไม่ตรง                                |
+| `npm run preview` | `wrangler dev` — จำลอง Workers บนเครื่อง                              |
+| `npm run deploy`  | deploy ขึ้น Cloudflare Workers                                        |
 
 ## โครงสร้างไฟล์
 

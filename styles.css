@@ -16,6 +16,7 @@
   --text: #f2f3f7;
   --muted: #959bb2;
   --muted2: #6a7089;
+  --text-dim: #7e849c;
 
   /* accents */
   --primary: #6366f1;
@@ -35,6 +36,7 @@
   --dock-bg: rgba(20, 20, 29, 0.94);
   --shadow: 0 18px 48px rgba(0, 0, 0, 0.4);
   --shadow-sm: 0 2px 10px rgba(0, 0, 0, 0.18);
+  --shadow-lg: 0 24px 60px rgba(0, 0, 0, 0.5);
 
   --radius: 18px;
   --radius-sm: 14px;
@@ -53,6 +55,7 @@ body.light {
   --text: #101018;
   --muted: #646a7d;
   --muted2: #959bad;
+  --text-dim: #5c6274;
 
   --primary: #4f46e5;
   --primary2: #4f46e5;
@@ -70,6 +73,7 @@ body.light {
   --dock-bg: rgba(255, 255, 255, 0.95);
   --shadow: 0 18px 44px rgba(15, 17, 34, 0.1);
   --shadow-sm: 0 1px 3px rgba(15, 17, 34, 0.06);
+  --shadow-lg: 0 22px 52px rgba(15, 17, 34, 0.18);
 }
 
 body.fs-l {
@@ -77,6 +81,11 @@ body.fs-l {
 }
 body.fs-xl {
   font-size: 19px;
+}
+
+/* ล็อกสกรอลขณะเปิด sheet/overlay (app.js เพิ่ม/ลบคลาสนี้) */
+body.ov-open {
+  overflow: hidden;
 }
 
 * {
@@ -430,7 +439,7 @@ body.light .btn.p {
   border-color: rgba(16, 185, 129, 0.24);
 }
 .btn.sm {
-  min-height: 36px;
+  min-height: 44px;
   padding: 7px 14px;
   font-size: 13px;
   border-radius: 11px;
@@ -668,9 +677,9 @@ body.light .btn.p {
   padding: 4px;
 }
 .role-card__controls .cnt__btn {
-  width: 40px;
-  height: 40px;
-  flex: 0 1 40px;
+  width: 44px;
+  height: 44px;
+  flex: 0 1 44px;
   min-width: 0;
 }
 .role-card__controls .cnt__value {
@@ -888,7 +897,7 @@ input[type='text'] {
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   color: var(--text);
-  font-size: 15px;
+  font-size: 16px;
   font-family: inherit;
   transition: all 0.15s;
 }

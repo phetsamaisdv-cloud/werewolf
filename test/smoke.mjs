@@ -69,6 +69,8 @@ const MIME = {
   '.json': 'application/json; charset=utf-8',
   '.svg': 'image/svg+xml',
   '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
   '.md': 'text/markdown; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
   '.ico': 'image/x-icon'
@@ -262,6 +264,7 @@ async function main() {
   const pageErrors = [];
   const httpErrors = [];
   const dialogs = [];
+  let offlineNet = false;
   let ws,
     sendId = 0;
   const eventLog = [];
@@ -326,7 +329,7 @@ async function main() {
         if (!/favicon/i.test(txt) && !/navigator\.vibrate/i.test(txt)) pageErrors.push(txt);
       } else if (m.method === 'Network.responseReceived') {
         const s = m.params.response.status;
-        if (s >= 400) httpErrors.push(`${s} ${m.params.response.url}`);
+        if (s >= 400 && !offlineNet) httpErrors.push(`${s} ${m.params.response.url}`);
       }
     };
     send = function (method, params = {}) {
@@ -754,13 +757,18 @@ async function main() {
     const shellCache = (cacheKeys || []).find(k => k.startsWith('werewolf-shell-'));
     check('S9 มี cache shell', !!shellCache, JSON.stringify(cacheKeys));
     const cachedFiles = shellCache ? await ev(`caches.open(${JSON.stringify(shellCache)}).then(c=>c.keys()).then(ks=>ks.map(k=>new URL(k.url).pathname))`) : [];
-    const need = ['/index.html', '/styles.css', '/app.js', '/manifest.json'];
+    const swSrc = fs.readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
+    const coreMatch = swSrc.match(/const CORE_ASSETS = \[([\s\S]*?)\];/);
+    const need = coreMatch
+      ? [...coreMatch[1].matchAll(/'([^']+)'/g)].map(x => x[1].replace(/^\.\//, '/')).filter(p => p !== '/')
+      : ['/index.html', '/styles.css', '/app.js', '/manifest.json'];
     check(
-      'S9 cache ครบทุกไฟล์หลัก',
-      need.every(f => (cachedFiles || []).some(p => p.endsWith(f))),
-      JSON.stringify(cachedFiles)
+      'S9 cache ครบทุกไฟล์ใน CORE_ASSETS (' + need.length + ' ไฟล์ รวมรูปบทบาท)',
+      need.every(f => (cachedFiles || []).some(p => p === f || p.endsWith(f))),
+      JSON.stringify({missing: need.filter(f => !(cachedFiles || []).some(p => p === f || p.endsWith(f))), total: (cachedFiles || []).length})
     );
 
+    offlineNet = true;
     await send('Network.emulateNetworkConditions', {offline: true, latency: 0, downloadThroughput: 0, uploadThroughput: 0});
     await send('Page.navigate', {url: PAGE});
     await waitFor('!!document.getElementById("app") && document.getElementById("app").innerHTML.length > 500', 'offline reload', 15000);
@@ -770,7 +778,18 @@ async function main() {
       !!(offlineOk && offlineOk.html && offlineOk.css && String(offlineOk.title).includes('คืนหอนหลอนหมาป่า')),
       JSON.stringify(offlineOk)
     );
+    const offlineImg = await ev(
+      `fetch('/assets/roles/seer.jpg').then(r => ({ok: r.ok, ct: r.headers.get('content-type'), len: 0})).catch(e => ({ok: false, err: String(e)}))`
+    );
+    check(
+      'S9 ออฟไลน์ → รูปบทบาทจากแคชได้ (image/jpeg)',
+      !!(offlineImg && offlineImg.ok && String(offlineImg.ct || '').startsWith('image/')),
+      JSON.stringify(offlineImg)
+    );
+    const offlineSvg = await ev(`fetch('/icon.svg').then(r => ({ok: r.ok, ct: r.headers.get('content-type')})).catch(e => ({ok: false}))`);
+    check('S9 ออฟไลน์ → icon.svg จากแคช', !!(offlineSvg && offlineSvg.ok), JSON.stringify(offlineSvg));
     await send('Network.emulateNetworkConditions', {offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1});
+    offlineNet = false;
 
     /* ===== S10: multi-slot + ประวัติเกม ===== */
     const slotInfo =
@@ -1234,7 +1253,403 @@ async function main() {
       JSON.stringify(bigGame)
     );
 
+    /* ===== S16: regression หลังแก้บั๊ก P0/P1/P2 + ฟีเจอร์เบาะแสผี ===== */
+    await ev(DRIVER);
+    const fixInfo =
+      (await ev(`(async () => {
+      const out = {steps: {}, error: null};
+      const zero = () => zeroRoles();
+      function fresh(n, roles){
+        newGameEnd();
+        S.setup.n = n;
+        S.setup.names = Array.from({length:n}, (_,i)=>'F'+(i+1));
+        S.setup.roles = Object.assign(zero(), roles);
+        S.setup.assignMode = 'random';
+        startGame();
+        let guard = 0;
+        while(S.screen === 'reveal' && guard++ < 60) nextRv();
+        S.screen = 'night'; render();
+        return true;
+      }
+      async function settleP(p){
+        __T.clickDlg();
+        try { await p; } catch(e) {}
+        for (let i=0; i<5 && document.getElementById('dialogOverlay'); i++){
+          await new Promise(r=>setTimeout(r,60));
+          __T.clickDlg();
+        }
+      }
+      const byRole = id => S.g.players.find(p=>p.roleId===id);
+      try {
+        /* 1) ผี: เบาะแสทยอยเปิดวันละตัวอักษร + GM เห็นคำเต็ม */
+        fresh(7, {werewolf:1, ghost:1, seer:1, witch:1});
+        S.g.night.killTarget = S.g.players.find(p=>p.roleId==='villager').id;
+        await settleP(endNight());
+        const g1 = {
+          word: S.g.ghostWord || null,
+          revealed: S.g.ghostRevealed || 0,
+          clue: !!(S.g.log || []).find(e => e.msg && e.msg.indexOf('ผีส่งเบาะแส') >= 0)
+        };
+        fromDawn();
+        goToNight();
+        S.g.night.killTarget = null;
+        await settleP(endNight());
+        g1.revealed2 = S.g.ghostRevealed || 0;
+        g1.clue2 = (S.g.log || []).filter(e => e.msg && e.msg.indexOf('ผีส่งเบาะแส') >= 0).length;
+        showModPanel();
+        const gsh = document.getElementById('sheetOverlay');
+        g1.gmSeesWord = !!(S.g.ghostWord && gsh && gsh.innerText.indexOf(S.g.ghostWord) >= 0);
+        closeSheet();
+        out.steps.ghost = g1;
+
+        /* 2) นายพรานยิงยาจก → ยาจกชนะทันที (P0-4) */
+        fresh(6, {werewolf:1, hunter:1, tanner:1, seer:1});
+        S.ui.pendHunter = {hunterId: byRole('hunter').id, context: 'dawn'};
+        hunterShoot(byRole('tanner').id);
+        out.steps.hunterTanner = {winner: S.g.winner, screen: S.screen};
+
+        /* 3) goHome → goSetup → goHome → resume ยังอยู่ (P0-5) */
+        fresh(6, {werewolf:1, seer:1, witch:1});
+        goHome();
+        const resume1 = S.ui.resumeScreen;
+        goSetup();
+        const gKeeps = !!S.g;
+        goHome();
+        const resume2 = S.ui.resumeScreen;
+        await continueGame();
+        out.steps.resume = {resume1, gKeeps, resume2, back: S.screen};
+
+        /* 4) parity: canStart กันทันที / lone ยื้อ / ไม่มีนักล่า (P1-6) */
+        const keepSetup = JSON.parse(JSON.stringify(S.setup));
+        S.setup.n = 4;
+        S.setup.roles = zero(); S.setup.roles.werewolf = 1; S.setup.roles.minion = 1;
+        const parityBlock = canStart() === false;
+        S.setup.roles = zero(); S.setup.roles.werewolf = 1; S.setup.roles.lone_wolf = 1;
+        const loneAllowed = canStart() === true;
+        S.setup.roles = zero(); S.setup.roles.minion = 1;
+        const noKiller = canStart() === false;
+        S.setup = keepSetup;
+        out.steps.parity = {parityBlock, loneAllowed, noKiller};
+
+        /* 5) undo ลัทธิข้ามรอบ: เก่าคงอยู่ เอาเฉพาะรอบนี้ (P1-7) */
+        fresh(7, {cult_leader:1, werewolf:1, seer:1, witch:1});
+        openN('cult_leader');
+        const cA = cultRecruitables()[0];
+        toggleTgtN(cA.id);
+        confirmCult();
+        S.g.round = 2;
+        openN('cult_leader');
+        const cB = cultRecruitables()[0];
+        toggleTgtN(cB.id);
+        confirmCult();
+        undoN('cult_leader');
+        out.steps.cult = {
+          aStill: !!cA.cult,
+          bCleared: !cB.cult,
+          logs: S.g.log.filter(e=>e.msg && e.msg.indexOf('เจ้าลัทธิชวน')>=0).length
+        };
+
+        /* 6) seer log มีวรรค + undo ลบเฉพาะรอบเดียวกัน (P1-8) */
+        fresh(6, {werewolf:1, seer:1, witch:1});
+        const seerP = byRole('seer');
+        S.ui.tgt = S.g.players.find(p=>p.id!==seerP.id).id;
+        confirmSeer();
+        const seerLogs1 = S.g.log.filter(e=>e.msg && e.msg.indexOf('พยากรณ์ ตรวจ')>=0);
+        const spaceOk = seerLogs1.length===1 && seerLogs1[0].msg.indexOf('พยากรณ์ ตรวจ')>=0;
+        undoSeer();
+        const afterUndo = S.g.log.filter(e=>e.msg && e.msg.indexOf('พยากรณ์ ตรวจ')>=0).length;
+        S.ui.tgt = S.g.players.find(p=>p.id!==seerP.id).id;
+        confirmSeer();
+        S.g.round = 5;
+        undoSeer();
+        out.steps.seer = {
+          spaceOk,
+          afterUndo,
+          afterGuard: S.g.log.filter(e=>e.msg && e.msg.indexOf('พยากรณ์ ตรวจ')>=0).length,
+          checksKept: (S.g.seerChecks||[]).length
+        };
+
+        /* 7) ผีถูกยายแก่ขับไล่: โหวตเองไม่ได้ แต่เป็นเป้าโหวตได้ (P2) */
+        fresh(7, {werewolf:1, grandma:1, seer:1, witch:1});
+        S.screen = 'voting'; startVoting();
+        const ban = S.g.players.find(p=>p.roleId==='villager') || alive()[alive().length-1];
+        S.g.night.grandmaTarget = ban.id;
+        S.ui.vVoter = null;
+        selectVoter(ban.id);
+        const banCannotVote = S.ui.vVoter === null;
+        const voter = alive().find(p=>p.id!==ban.id);
+        selectVoter(voter.id);
+        selectTarget(ban.id);
+        const canTarget = S.ui.vTarget === ban.id;
+        render();
+        const banHtml = document.getElementById('app').innerHTML;
+        const chipOk = banHtml.indexOf('selectTarget(' + ban.id + ')') >= 0;
+        confirmVote();
+        const banVote = S.ui.votes.find(v=>v.targetId===ban.id);
+        const tBan = tally();
+        out.steps.banished = {banCannotVote, canTarget, voted: !!banVote, tally: tBan[ban.id]||0, chipOk};
+
+        /* 8) การ์ดหมาป่าโผล่เฉพาะมีนักล่าจริง (P2) */
+        fresh(6, {werewolf:1, minion:1, seer:1, witch:1});
+        const withWolf = activeNRoles().indexOf('werewolf') >= 0;
+        byRole('werewolf').alive = false;
+        const minionOnly = activeNRoles().indexOf('werewolf') >= 0;
+        byRole('werewolf').alive = true;
+        const backWolf = activeNRoles().indexOf('werewolf') >= 0;
+        out.steps.gating = {withWolf, minionOnly, backWolf};
+
+        /* 9) flag "ส่งเชื้อ" แสดงเฉพาะผู้ที่กระตุ้นจริง (P2) */
+        fresh(6, {werewolf:1, infected:1, seer:1, witch:1});
+        const inf = byRole('infected');
+        inf.alive = false;
+        inf.triggeredInfection = true;
+        showModPanel();
+        const flagOn = (document.getElementById('sheetOverlay')||{innerText:''}).innerText.indexOf('ส่งเชื้อ') >= 0;
+        closeSheet();
+        inf.triggeredInfection = false;
+        showModPanel();
+        const flagOff = (document.getElementById('sheetOverlay')||{innerText:''}).innerText.indexOf('ส่งเชื้อ') >= 0;
+        closeSheet();
+        out.steps.flag = {flagOn, flagOff};
+
+        /* 10) XSS ชื่อผู้เล่น + ธงคู่รักบนแผง GM (P0-1) */
+        fresh(6, {werewolf:1, cupid:1, seer:1, witch:1});
+        const xp0 = S.g.players[0], xp1 = S.g.players[1];
+        xp0.isLover = true; xp0.loverId = xp1.id;
+        xp1.isLover = true; xp1.loverId = xp0.id;
+        const oldXName = xp1.name;
+        xp1.name = '<img src=x onerror="window.__xss2=1">';
+        showModPanel();
+        const xsh = document.getElementById('sheetOverlay');
+        const xBad = !!window.__xss2 || !!(xsh && xsh.querySelector('img[src="x"]'));
+        const xShows = !!(xsh && xsh.innerText.indexOf('onerror') >= 0);
+        closeSheet();
+        xp1.name = oldXName;
+        xp0.isLover = false; xp0.loverId = null;
+        xp1.isLover = false; xp1.loverId = null;
+        out.steps.xss = {bad: xBad, shows: xShows};
+
+        /* 11) pacifist ยืนยันโหวตได้แม้ไม่เลือกเป้า + forceVote ไม่ค้าง (P0-2) */
+        fresh(6, {werewolf:1, pacifist:1, seer:1, witch:1});
+        S.screen = 'voting'; startVoting();
+        const pac = byRole('pacifist');
+        selectVoter(pac.id);
+        confirmVote();
+        const pacVote = S.ui.votes.find(v=>v.voterId===pac.id);
+        S.g.forceVoteRound = S.g.round;
+        const others = dayAlive().filter(p=>p.id!==pac.id);
+        const exTarget = byRole('witch');
+        const exTgtId = exTarget ? exTarget.id : others[0].id;
+        for (const o of others){
+          selectVoter(o.id);
+          if (o.id !== exTgtId) selectTarget(exTgtId);
+          else {
+            const alt = others.find(x=>x.id!==o.id);
+            selectTarget(alt.id);
+          }
+          confirmVote();
+        }
+        await settleP(finishVoting());
+        out.steps.pacifist = {voteOk: !!(pacVote && pacVote.skip===true), screen: S.screen};
+
+        /* 12) save ไม่เก็บ preExecuteSnap (P2) */
+        newGameEnd();
+        S.screen = 'home';
+        S.ui.preExecuteSnap = {g: {round: 999}};
+        save();
+        let snapPersisted = 'none';
+        try { snapPersisted = JSON.parse(localStorage.getItem(saveKey())).ui.preExecuteSnap; } catch(e) { snapPersisted = 'err'; }
+        const snapMem = !!(S.ui.preExecuteSnap && S.ui.preExecuteSnap.g && S.ui.preExecuteSnap.g.round===999);
+        S.ui.preExecuteSnap = null;
+        out.steps.snap = {persisted: snapPersisted, memKept: snapMem};
+
+        /* 13) corrupt save: สำรอง + บล็อก + กู้(ปฏิเสธของเสีย) + ลบ (P0-3) */
+        const key3 = slotKeyFor(3);
+        localStorage.removeItem(key3);
+        localStorage.removeItem(key3 + CORRUPT_SUFFIX);
+        localStorage.setItem(key3, '%%%GARBAGE-not-json');
+        const stBefore = slotState(3);
+        switchSlot(3);
+        await new Promise(r=>setTimeout(r,80));
+        if (document.getElementById('dialogOverlay')) __T.clickDlg();
+        const stAfter = slotState(3);
+        const mainAfter = localStorage.getItem(key3);
+        const bakWas = localStorage.getItem(key3 + CORRUPT_SUFFIX) !== null;
+        const blocked = CORRUPT_BLOCK_KEY === key3;
+        save();
+        const mainAfterSave = localStorage.getItem(key3);
+        const restoreP = restoreCorruptSlot(3);
+        await new Promise(r=>setTimeout(r,60));
+        if (document.getElementById('dialogOverlay')) __T.clickDlg();
+        await restoreP;
+        const bakAfterRefuse = localStorage.getItem(key3 + CORRUPT_SUFFIX);
+        const disP = discardCorruptBackup(3);
+        await new Promise(r=>setTimeout(r,60));
+        if (document.getElementById('dialogOverlay')) __T.clickDlg();
+        await disP;
+        if (document.getElementById('dialogOverlay')) __T.clickDlg();
+        const stFinal = slotState(3);
+        const bakFinal = localStorage.getItem(key3 + CORRUPT_SUFFIX);
+        const blockCleared = CORRUPT_BLOCK_KEY !== key3;
+        switchSlot(1);
+        out.steps.corrupt = {stBefore, stAfter, mainWas: mainAfter, bakWas, blocked, mainAfterSave, bakAfterRefuse, stFinal, bakFinal, blockCleared};
+
+        /* 14) การ์ด preset แสดงหลังบันทึก (P1-13) */
+        goSetup();
+        S.setup.n = 9;
+        savePreset();
+        const presetCard = document.getElementById('app').innerHTML.indexOf('ชุดบทบาทที่บันทึกไว้') >= 0;
+        const plist = readPresets();
+        const presetSaved = plist.length >= 1 && Number(plist[0].n) === 9;
+        writePresets([]);
+        render();
+
+        /* 15) sheet a11y: role/aria-modal/lock + Escape ปิด (P1-14) */
+        showHistory();
+        const shEl = document.getElementById('sheetOverlay');
+        const a11y = {
+          role: shEl ? shEl.getAttribute('role') : null,
+          modal: shEl ? shEl.getAttribute('aria-modal') : null,
+          lock: document.body.classList.contains('ov-open')
+        };
+        document.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', bubbles: true, cancelable: true}));
+        a11y.closed = !document.getElementById('sheetOverlay');
+        a11y.lockAfter = document.body.classList.contains('ov-open');
+
+        /* 16) theme-color + colorScheme ตามธีม (P1-15) */
+        const origTheme = S.setup.theme;
+        setTheme('light');
+        const metaEl = document.querySelector('meta[name="theme-color"]');
+        const lightC = metaEl ? metaEl.getAttribute('content') : null;
+        const cs1 = document.documentElement.style.colorScheme;
+        setTheme('dark');
+        const darkC = metaEl ? metaEl.getAttribute('content') : null;
+        const cs2 = document.documentElement.style.colorScheme;
+        setTheme(origTheme);
+
+        /* 17) aria-live region คงที่ */
+        announce('ทดสอบ เสียงอ่าน 789');
+        await new Promise(r=>setTimeout(r,90));
+        const liveTxt = (document.getElementById('srLive') || {}).textContent || '';
+
+        /* 18) migrateSave: doctor/fool → villager ทุกจุด (P1-12) */
+        const oldSave = {
+          screen: 'assign', ver: 1, schema: 0,
+          setup: {n: 6, names: ['A','B','C','D','E','F'], roles: {werewolf:1, doctor:1, fool:1, seer:1}},
+          ui: {assign: {'1':'doctor', '2':'fool'}},
+          g: {round: 1, winner: null, night: {}, log: [],
+              players: [{id:1, name:'B', roleId:'doctor', alive:true}, {id:2, name:'C', roleId:'fool', alive:true}]}
+        };
+        const m = migrateSave(JSON.parse(JSON.stringify(oldSave)));
+        out.steps.mig = {
+          assign: m.ui.assign['1']==='villager' && m.ui.assign['2']==='villager',
+          players: m.g.players[0].roleId==='villager' && m.g.players[1].roleId==='villager',
+          counts: m.setup.roles.villager===2 && m.setup.roles.doctor===undefined && m.setup.roles.fool===undefined
+        };
+
+        out.steps.preset = {presetCard, presetSaved};
+        out.steps.a11y = a11y;
+        out.steps.theme = {lightC, darkC, cs1, cs2, restored: S.setup.theme===origTheme};
+        out.steps.live = liveTxt.indexOf('ทดสอบ') >= 0;
+      } catch(e) {
+        out.error = String((e && e.stack) || e);
+      }
+      return out;
+    })()`)) || {};
+    const fx = fixInfo.steps || {};
+    check('S16 scenario รันครบไม่ throw', fixInfo.error === null, String(fixInfo.error || ''));
+    check(
+      'S16 ผี: เบาะแสทยอยเปิด + GM เห็นคำเต็ม',
+      fx.ghost &&
+        fx.ghost.word &&
+        fx.ghost.word.length >= 2 &&
+        fx.ghost.revealed === 1 &&
+        fx.ghost.clue === true &&
+        fx.ghost.revealed2 === 2 &&
+        fx.ghost.clue2 >= 2 &&
+        fx.ghost.gmSeesWord === true,
+      JSON.stringify(fx.ghost || {})
+    );
+    check(
+      'S16 นายพรานยิงยาจก → ยาจกชนะทันที',
+      fx.hunterTanner && fx.hunterTanner.winner === 'tanner' && fx.hunterTanner.screen === 'end',
+      JSON.stringify(fx.hunterTanner || {})
+    );
+    check(
+      'S16 ออกจากเกม→ตั้งค่า→กลับ → resume ยังอยู่ + เล่นต่อได้',
+      fx.resume && fx.resume.resume1 === 'night' && fx.resume.gKeeps === true && fx.resume.resume2 === 'night' && fx.resume.back === 'night',
+      JSON.stringify(fx.resume || {})
+    );
+    check(
+      'S16 parity: กันเริ่มทันที / lone ยื้อได้ / ไม่มีนักล่า = ห้ามเริ่ม',
+      fx.parity && fx.parity.parityBlock && fx.parity.loneAllowed && fx.parity.noKiller,
+      JSON.stringify(fx.parity || {})
+    );
+    check(
+      'S16 undo ลัทธิข้ามรอบ: เก่าคงอยู่ เอาออกเฉพาะรอบนี้',
+      fx.cult && fx.cult.aStill && fx.cult.bCleared && fx.cult.logs === 1,
+      JSON.stringify(fx.cult || {})
+    );
+    check(
+      'S16 seer log มีวรรค + undo ลบเฉพาะรอบเดียวกัน',
+      fx.seer && fx.seer.spaceOk && fx.seer.afterUndo === 0 && fx.seer.afterGuard === 1 && fx.seer.checksKept === 1,
+      JSON.stringify(fx.seer || {})
+    );
+    check(
+      'S16 ผีถูกขับไล่: โหวตเองไม่ได้แต่เป็นเป้าได้ + tally นับ',
+      fx.banished && fx.banished.banCannotVote && fx.banished.canTarget && fx.banished.voted && fx.banished.tally >= 1 && fx.banished.chipOk,
+      JSON.stringify(fx.banished || {})
+    );
+    check(
+      'S16 การ์ดหมาป่าโผล่เฉพาะมีนักล่าจริง (minion อย่างเดียว = ไม่มี)',
+      fx.gating && fx.gating.withWolf === true && fx.gating.minionOnly === false && fx.gating.backWolf === true,
+      JSON.stringify(fx.gating || {})
+    );
+    check('S16 flag "ส่งเชื้อ" แสดงเฉพาะผู้ที่กระตุ้นจริง', fx.flag && fx.flag.flagOn === true && fx.flag.flagOff === false, JSON.stringify(fx.flag || {}));
+    check('S16 XSS ในชื่อ + คู่รักบนแผง GM ถูก escape', fx.xss && fx.xss.bad === false && fx.xss.shows === true, JSON.stringify(fx.xss || {}));
+    check(
+      'S16 ผู้รักสันติยืนยันโหวตได้ + forceVote ไม่ค้าง (ไปถึงแขวน)',
+      fx.pacifist && fx.pacifist.voteOk === true && fx.pacifist.screen === 'execution',
+      JSON.stringify(fx.pacifist || {})
+    );
+    check('S16 save ไม่เก็บ preExecuteSnap (memory ยังอยู่)', fx.snap && fx.snap.persisted === null && fx.snap.memKept === true, JSON.stringify(fx.snap || {}));
+    check(
+      'S16 corrupt save: สำรอง+บล็อก+กู้(ปฏิเสธ)+ลบ เรียบร้อย',
+      fx.corrupt &&
+        fx.corrupt.stBefore === 'corrupt' &&
+        fx.corrupt.stAfter === 'corrupt' &&
+        fx.corrupt.mainWas === null &&
+        fx.corrupt.bakWas === true &&
+        fx.corrupt.blocked === true &&
+        fx.corrupt.mainAfterSave === null &&
+        fx.corrupt.bakAfterRefuse !== null &&
+        fx.corrupt.stFinal === 'empty' &&
+        fx.corrupt.bakFinal === null &&
+        fx.corrupt.blockCleared === true,
+      JSON.stringify(fx.corrupt || {})
+    );
+    check('S16 การ์ด preset แสดงหลังบันทึก', fx.preset && fx.preset.presetCard && fx.preset.presetSaved, JSON.stringify(fx.preset || {}));
+    check(
+      'S16 sheet: role=dialog + aria-modal + lock + Escape ปิด',
+      fx.a11y && fx.a11y.role === 'dialog' && fx.a11y.modal === 'true' && fx.a11y.lock === true && fx.a11y.closed === true && fx.a11y.lockAfter === false,
+      JSON.stringify(fx.a11y || {})
+    );
+    check(
+      'S16 theme-color + colorScheme สลับตามธีม',
+      fx.theme &&
+        fx.theme.restored === true &&
+        fx.theme.lightC === '#f6f6f8' &&
+        fx.theme.darkC === '#0a0a0f' &&
+        fx.theme.cs1 === 'light' &&
+        fx.theme.cs2 === 'dark',
+      JSON.stringify(fx.theme || {})
+    );
+    check('S16 aria-live region คงที่ทำงาน (announce)', fx.live === true, JSON.stringify(fx.live));
+    check('S16 migrateSave: doctor/fool → villager ทุกจุด', fx.mig && fx.mig.assign && fx.mig.players && fx.mig.counts, JSON.stringify(fx.mig || {}));
+
     /* ===== report ===== */
+    check('จบชุด — ไม่มี JS exception ระหว่างทาง', pageErrors.length === 0, pageErrors.slice(0, 3).join(' | '));
+    check('จบชุด — ไม่มี HTTP error (404/500) ระหว่างทาง', httpErrors.length === 0, httpErrors.slice(0, 3).join(' | '));
     const failed = results.filter(r => !r.ok);
     console.log('\n========================================');
     console.log(`ผลทดสอบ: ${results.length - failed.length}/${results.length} ผ่าน`);

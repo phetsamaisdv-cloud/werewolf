@@ -2,7 +2,7 @@
 <html lang="th">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="mobile-web-app-capable" content="yes" />
@@ -24,7 +24,19 @@
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
+    <noscript>
+      <div style="padding: 28px 20px; text-align: center; font-family: sans-serif; line-height: 1.7">
+        <h1 style="font-size: 20px">คืนหอนหลอนหมาป่า</h1>
+        <p>แอปนี้ใช้ JavaScript ในการทำงาน — กรุณาเปิดใช้งาน JavaScript แล้วโหลดหน้านี้ใหม่</p>
+      </div>
+    </noscript>
     <div id="app"></div>
+    <div
+      id="srLive"
+      aria-live="polite"
+      aria-atomic="true"
+      style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap"
+    ></div>
     <div id="modTrig" onpointerdown="modStart(event)" onpointerup="modEnd(event)" onpointerleave="modEnd(event)" onpointercancel="modEnd(event)">
       <div class="ring"></div>
       <div class="fill"></div>
