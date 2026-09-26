@@ -105,6 +105,8 @@ function startServer(port) {
 
 /* ---------- page driver (注入 ลงในหน้า) ---------- */
 const DRIVER = `
+window.__hb = window.__hb || 0;
+if(!window.__hbTimer){ window.__hbTimer = setInterval(function(){ window.__hb++; }, 500); }
 if(!window.__dlgWrapped){
   window.__dlgWrapped = true;
   window.__dlgCount = 0;
@@ -132,8 +134,7 @@ window.__T = (function(){
         pickT(nonWolf[0].id);
         if(isWolfTwoTargetMode() && nonWolf[1]) pickT(nonWolf[1].id);
         confirmWolf();
-      } else if(r === 'seer'){ pickT(ap[0].id); confirmSeer(); }
-      else if(r === 'doctor'){ pickT(ap[0].id); confirmDoctor(); }
+      }       else if(r === 'seer'){ pickT(ap[0].id); confirmSeer(); }
       else if(r === 'bodyguard'){ pickT(ap[0].id); confirmBodyguard(); }
       else if(r === 'witch'){
         if(canWHeal()){
@@ -146,6 +147,22 @@ window.__T = (function(){
       }
       else if(r === 'cursed'){ confirmCursed(); }
       else if(r === 'grandma'){ pickT(ap[ap.length-1].id); confirmGrandma(); }
+      else if(r === 'priest'){ toggleTgtN(ap[0].id); confirmPriest(); }
+      else if(r === 'pi'){ toggleTgtN(ap[0].id); confirmPi(); }
+      else if(r === 'spellcaster'){ toggleTgtN(ap[ap.length-1].id); confirmSpellcaster(); }
+      else if(r === 'sorceress'){ toggleTgtN(ap[0].id); confirmSorceress(); }
+      else if(r === 'cult_leader'){
+        const c = cultRecruitables();
+        if(c.length){ toggleTgtN(c[0].id); confirmCult(); } else { skipN(); }
+      }
+      else if(r === 'vampire'){ toggleTgtN((nonWolf[0] || ap[0]).id); confirmVampire(); }
+      else if(r === 'troublemaker'){ confirmTroublemaker(); }
+      else if(r === 'virginia_woolf'){ toggleTgtN((nonWolf[0] || ap[0]).id); confirmVW(); }
+      else if(r === 'hoodlum'){
+        if(ap[1]){ toggleTgtN(ap[0].id); toggleTgtN(ap[1].id); confirmHoodlum(); }
+        else if(ap[0]){ toggleTgtN(ap[0].id); confirmHoodlum(); }
+      }
+      if(S.ui.nRole && !S.ui.nDone[r] && typeof N_ACTIONS !== 'undefined' && N_ACTIONS[r] && N_ACTIONS[r].skipLabel){ skipN(); }
     }
   }
   function hunterStep(){
@@ -171,7 +188,7 @@ window.__T = (function(){
     const ids = dayAlive().filter(p=>p.id!==ban).map(p=>p.id);
     const pool = ids.map(id=>getP(id)).filter(p=>p && !isWolfTeam(p));
     const pick = pool.find(p=>p.roleId==='villager')
-              || pool.find(p=>p.roleId!=='fool' && p.roleId!=='prince')
+              || pool.find(p=>p.roleId!=='prince')
               || pool[0];
     const target = pick ? pick.id : null;
     if(ids.length < 2 || target == null){
@@ -181,6 +198,16 @@ window.__T = (function(){
     for(const v of ids){
       if(v === target) continue;
       selectVoter(v); selectTarget(target); confirmVote();
+    }
+    /* วันที่ตัวป่วนบังคับโหวต → เป้าหมายต้องโหวตด้วย (ข้ามไม่ได้) */
+    if(typeof isForceVoteDay === 'function' && isForceVoteDay() && !hasVoted(target)){
+      const others = ids.filter(x => x !== target);
+      const alt = pool.find(p => p.id !== target) || (others.length ? getP(others[0]) : null);
+      if(alt && alt.id !== target){
+        selectVoter(target);
+        selectTarget(alt.id);
+        confirmVote();
+      }
     }
   }
   async function playRound(){
@@ -237,6 +264,9 @@ async function main() {
   const dialogs = [];
   let ws,
     sendId = 0;
+  const eventLog = [];
+  let wsClosed = false;
+  let ev, send;
   const pending = new Map();
 
   const cleanup = () => {
@@ -270,8 +300,15 @@ async function main() {
       ws.onopen = res;
       ws.onerror = rej;
     });
+    ws.onclose = () => {
+      wsClosed = true;
+    };
     ws.onmessage = ev => {
       const m = JSON.parse(ev.data);
+      if (m.method) {
+        eventLog.push(m.method + (m.params && m.params.reason ? ':' + m.params.reason : ''));
+        if (eventLog.length > 12) eventLog.shift();
+      }
       if (m.id && pending.has(m.id)) {
         pending.get(m.id)(m);
         pending.delete(m.id);
@@ -292,7 +329,7 @@ async function main() {
         if (s >= 400) httpErrors.push(`${s} ${m.params.response.url}`);
       }
     };
-    function send(method, params = {}) {
+    send = function (method, params = {}) {
       return new Promise((res, rej) => {
         const i = ++sendId;
         const timer = setTimeout(() => {
@@ -305,8 +342,8 @@ async function main() {
         });
         ws.send(JSON.stringify({id: i, method, params}));
       });
-    }
-    async function ev(expression, timeoutMs = 25000) {
+    };
+    ev = async function (expression, timeoutMs = 25000) {
       const i = ++sendId;
       const result = await new Promise((res, rej) => {
         const timer = setTimeout(() => {
@@ -323,7 +360,7 @@ async function main() {
       const d = result.result;
       if (d.exceptionDetails) throw new Error('page exception: ' + (d.exceptionDetails.exception?.description || d.exceptionDetails.text));
       return d.result?.value;
-    }
+    };
     async function waitFor(expression, label, timeoutMs = 20000) {
       const t0 = Date.now();
       for (;;) {
@@ -374,8 +411,8 @@ async function main() {
       goSetup();
       S.setup.n = 16;
       S.setup.names = Array.from({length:16}, (_,i) => 'P' + (i+1));
-      S.setup.roles = {werewolf:2, wolfcub:1, seer:1, witch:1, hunter:1, doctor:1, bodyguard:1,
-                       cupid:1, mayor:1, cursed:1, fool:1, infected:1, prince:1, grandma:1};
+      S.setup.roles = {werewolf:2, wolfcub:1, seer:1, witch:1, hunter:1, tough_guy:1, bodyguard:1,
+                       cupid:1, mayor:1, cursed:1, ghost:1, infected:1, prince:1, grandma:1};
       S.setup.assignMode = 'manual';
       return {can: canStart(), roles: totalRoles(), vill: villagerCount(), warn: balanceWarnings().length};
     })()`)) || {};
@@ -412,7 +449,7 @@ async function main() {
       const savedId = saved[0] ? saved[0].id : null;
       applyPreset('std', 4);
       loadCustomPreset(savedId);
-      const loadedOk = S.setup.n === 8 && S.setup.roles.fool === 1 && S.setup.roles.cupid === 1;
+      const loadedOk = S.setup.n === 8 && S.setup.roles.priest === 1 && S.setup.roles.cupid === 1;
       const dp = deleteCustomPreset(savedId);
       const dlgOk = document.querySelector('#dialogOverlay [data-dlg="1"]');
       if(dlgOk) dlgOk.click();
@@ -446,7 +483,7 @@ async function main() {
     check('S4 ผู้เล่น 16 คน ครบตามที่ตั้ง', (await ev('S.g.players.length')) === 16);
     check(
       'S4 มีครบทุกบทบาทในเกม',
-      ['werewolf', 'wolfcub', 'seer', 'witch', 'hunter', 'doctor', 'bodyguard', 'cupid', 'mayor', 'cursed', 'fool', 'infected', 'prince', 'grandma'].every(
+      ['werewolf', 'wolfcub', 'seer', 'witch', 'hunter', 'tough_guy', 'bodyguard', 'cupid', 'mayor', 'cursed', 'ghost', 'infected', 'prince', 'grandma'].every(
         r => roleCount[r] === 1 || (r === 'werewolf' && roleCount[r] === 2)
       ),
       JSON.stringify(roleCount)
@@ -461,7 +498,7 @@ async function main() {
     /* ===== S5: mod panel + history + XSS ระหว่างเกม ===== */
     await ev('showModPanel()');
     const modText = await ev('document.getElementById("sheetOverlay") ? document.getElementById("sheetOverlay").innerText : ""');
-    check('S5 Moderator Panel เปิดและเห็นบทบาท', modText.includes('ผู้หยั่งรู้') || modText.includes('หมาป่า'));
+    check('S5 แผง GM เปิดและเห็นบทบาท', modText.includes('เทพพยากรณ์') || modText.includes('หมาป่า'));
     await ev('closeSheet()');
 
     const xss = await ev(`(() => {
@@ -506,7 +543,7 @@ async function main() {
       '({screen:S.screen, winner:S.g ? S.g.winner : null, reason:S.g ? S.g.winReason : null, round:S.g ? S.g.round : 0, alive:alive().length})'
     );
     check('S6 เกมจบภายใน 40 รอบ', endState.screen === 'end', `round=${endState.round} alive=${endState.alive}`);
-    check('S6 มีผู้ชนะถูกต้อง', ['village', 'werewolf', 'lovers', 'fool'].includes(endState.winner), `winner=${endState.winner} (${endState.reason})`);
+    check('S6 มีผู้ชนะถูกต้อง', ['village', 'werewolf', 'lovers'].includes(endState.winner), `winner=${endState.winner} (${endState.reason})`);
     check('S6 เล่นจบโดยไม่ติด state กลางคัน', endState.alive >= 0);
 
     const endText = await ev('document.getElementById("app").innerText');
@@ -536,7 +573,7 @@ async function main() {
       S.setup.n = 6;
       S.setup.names = ['U1','U2','U3','U4','U5','U6'];
       S.setup.roles = {werewolf:1, seer:1, witch:1, hunter:1, mayor:1, cupid:0, wolfcub:0,
-                       doctor:0, bodyguard:0, cursed:0, fool:0, infected:0, prince:0, grandma:0};
+                       bodyguard:0, cursed:0, infected:0, prince:0, grandma:0};
       S.setup.assignMode = 'random';
       startGame();
       for(let i=0;i<10 && S.screen==='reveal'; i++) nextRv();
@@ -675,7 +712,7 @@ async function main() {
     );
     check(
       'S10 บันทึกผลเกมที่จบลงประวัติ',
-      histInfo.len >= 1 && histInfo.first && histInfo.first.players > 0 && ['village', 'werewolf', 'lovers', 'fool'].includes(histInfo.first.winner),
+      histInfo.len >= 1 && histInfo.first && histInfo.first.players > 0 && ['village', 'werewolf', 'lovers'].includes(histInfo.first.winner),
       JSON.stringify(histInfo)
     );
 
@@ -818,6 +855,272 @@ async function main() {
     await ev('closeDialog()');
     check('S13 ปิด dialog เตือนได้', await ev('!document.getElementById("dialogOverlay")'));
 
+    /* ===== S14: บทบาทใหม่ — mechanics จริง ===== */
+    await ev(DRIVER); /* หน้าถูก reload ตอน S9 → ต้อง inject driver ใหม่ */
+    const newRoleInfo =
+      (await ev(`(async () => {
+      const out = {steps:{}};
+      const zero = () => zeroRoles();
+      function fresh(n, roles){
+        newGameEnd();
+        S.setup.n = n;
+        S.setup.names = Array.from({length:n}, (_,i)=>'N'+(i+1));
+        S.setup.roles = Object.assign(zero(), roles);
+        S.setup.assignMode = 'random';
+        startGame();
+        let guard = 0;
+        while(S.screen === 'reveal' && guard++ < 60) nextRv();
+        return true;
+      }
+      const byRole = id => S.g.players.find(p=>p.roleId===id);
+      const vill = () => S.g.players.find(p=>p.roleId==='villager');
+
+      try {
+        /* A. ผีตายคืนแรก */
+        fresh(6, {werewolf:1, ghost:1, seer:1, witch:1, bodyguard:1});
+        S.screen = 'night';
+        S.g.night.killTarget = vill().id;
+        await __T.settle(endNight());
+        out.steps.ghost = {
+          dead: !byRole('ghost').alive,
+          cause: S.ui.deathCauses[byRole('ghost').id],
+          victimDead: !vill().alive
+        };
+
+        /* B. นักเลงทนทาน — แผลเลื่อนตายรอบถัดไป */
+        fresh(6, {werewolf:1, tough_guy:1, seer:1});
+        S.screen = 'night';
+        const tough = byRole('tough_guy');
+        S.g.night.killTarget = tough.id;
+        await __T.settle(endNight());
+        out.steps.tough1 = {alive: tough.alive, wounded: !!tough.wounded, round: tough.woundRound};
+        goToNight();
+        S.screen = 'night';
+        await __T.settle(endNight());
+        out.steps.tough2 = {dead: !tough.alive, cause: S.ui.deathCauses[tough.id], stillWounded: !!tough.wounded};
+
+        /* C. แวมไพร์ — กัดตายวันรุ่งขึ้น + หมาป่ากัดไม่ตาย */
+        fresh(6, {werewolf:1, vampire:1, seer:1, witch:1});
+        S.screen = 'night';
+        const vamp = byRole('vampire');
+        const biteMe = vill();
+        S.g.night.killTarget = vamp.id;
+        S.g.night.biteTarget = biteMe.id;
+        await __T.settle(endNight());
+        out.steps.vamp1 = {vampAlive: !!vamp.alive, victimAlive: !!biteMe.alive, bitten: !!biteMe.bitten, round: biteMe.biteRound};
+        goToNight();
+        S.screen = 'night';
+        await __T.settle(endNight());
+        out.steps.vamp2 = {dead: !biteMe.alive, cause: S.ui.deathCauses[biteMe.id]};
+
+        /* D. lycan ถูกอ่านเป็นหมาป่า + นักบวชคุ้มกัน + นักเวทปิดปาก */
+        fresh(6, {werewolf:1, lycan:1, seer:1, priest:1, spellcaster:1});
+        S.screen = 'night';
+        const lyc = byRole('lycan');
+        const seerP = byRole('seer');
+        S.ui.tgt = lyc.id;
+        confirmSeer();
+        out.steps.lycanSeer = S.ui.seerRes && S.ui.seerRes.isWerewolf === true;
+        S.g.night.killTarget = lyc.id;
+        S.g.night.priestTarget = lyc.id;
+        S.g.night.silenceTarget = seerP.id;
+        await __T.settle(endNight());
+        const active = activeNRoles();
+        S.screen = 'dawn';
+        render();
+        const dawnTxt = document.getElementById('app').innerText;
+        out.steps.protect = {lycAlive: !!lyc.alive, silenceKept: S.g.night.silenceTarget === seerP.id, dawnShowsSilence: dawnTxt.includes('ปิดปาก'), activeHasPriest: active.includes('priest'), activeHasSpell: active.includes('spellcaster')};
+
+        /* E. ผู้รักสันติบังคับโหวตไม่ฆ่า + ตัวป่วนบังคับโหวต (ห้ามข้าม) */
+        fresh(6, {werewolf:1, pacifist:1, seer:1, troublemaker:1});
+        const pac = byRole('pacifist');
+        const other = byRole('villager');
+        S.screen = 'voting'; render(); startVoting();
+        selectVoter(pac.id); selectTarget(other.id); confirmVote();
+        const lastVote = S.ui.votes[S.ui.votes.length-1];
+        out.steps.pacifist = !!(lastVote && lastVote.skip === true);
+        S.g.forceVoteRound = S.g.round;
+        render();
+        const voteTxt = document.getElementById('app').innerText;
+        const before = S.ui.votes.length;
+        selectVoter(other.id);
+        const skipPromise = confirmSkipVote();
+        await new Promise(r => setTimeout(r, 60));
+        __T.clickDlg();
+        await skipPromise;
+        const afterSkip = S.ui.votes.length;
+        out.steps.forceVote = {uiWarns: voteTxt.includes('บังคับโหวต'), skipBlocked: afterSkip === before};
+
+        /* F. เงื่อนไขชนะ: lone wolf / cult / hoodlum / tanner */
+        fresh(8, {werewolf:1, lone_wolf:1, seer:1, cult_leader:1, hoodlum:1, tanner:1, vampire:1});
+        const lone = byRole('lone_wolf');
+        const keeper = vill();
+        S.g.players.forEach(p => { p.alive = false; });
+        lone.alive = true; keeper.alive = true;
+        out.steps.paritySuppressed = checkWin() === null;
+        keeper.alive = false;
+        out.steps.loneWin = (checkWin() || {}).winner;
+        S.g.players.forEach(p => { p.alive = true; p.cult = true; });
+        out.steps.cultWin = (checkWin() || {}).winner;
+        S.g.players.forEach(p => { p.alive = true; p.cult = false; });
+        const hood = byRole('hoodlum');
+        const h1 = S.g.players.find(p => p.id !== hood.id && p.roleId !== hood.roleId);
+        const h2 = S.g.players.find(p => p.id !== hood.id && p.id !== h1.id);
+        S.g.hoodlumTargets = [h1.id, h2.id];
+        h1.alive = false; h2.alive = false;
+        out.steps.hoodlumWin = (checkWin() || {}).winner;
+        S.g.hoodlumTargets = null;
+        fresh(5, {werewolf:1, tanner:1, seer:1});
+        S.screen = 'voting';
+        executePlayer(byRole('tanner').id);
+        out.steps.tannerVote = {winner: S.g.winner, screen: S.screen};
+
+        /* G. ปุ่ม night ของบทบาทใหม่กดได้จริง (render ไม่พัง) */
+        fresh(8, {werewolf:1, priest:1, pi:1, sorceress:1, spellcaster:1, troublemaker:1, vampire:1, cult_leader:1});
+        S.screen = 'night'; render();
+        const nightTxt = document.getElementById('app').innerText;
+        out.steps.nightCards = ['นักบวช','นักสืบ','นางปีศาจ','นักเวท','ตัวป่วน','แวมไพร์','เจ้าลัทธิ'].every(t => nightTxt.includes(t));
+        let openErr = null;
+        for (const r of activeNRoles()) {
+          try { openN(r); render(); closeN(); } catch(e){ openErr = r + ':' + e.message; }
+        }
+        out.steps.openErr = openErr;
+        S.g = null; S.ui = newUI(); S.screen = 'home'; render();
+      } catch(e) {
+        out.error = e.message;
+        S.g = null; S.ui = newUI(); S.screen = 'home';
+        try { render(); } catch(_){}
+      }
+      return out;
+    })()`)) || {};
+    check(
+      'S14 ผีเสียชีวิตคืนแรก (cause=ghost) + เหยื่อหมาป่าตายปกติ',
+      newRoleInfo.steps &&
+        newRoleInfo.steps.ghost &&
+        newRoleInfo.steps.ghost.dead === true &&
+        newRoleInfo.steps.ghost.cause === 'ghost' &&
+        newRoleInfo.steps.ghost.victimDead === true,
+      JSON.stringify(newRoleInfo.steps && newRoleInfo.steps.ghost)
+    );
+    check(
+      'S14 นักเลงทนทานรอดคืนแรก (wounded) → ตายคืนถัดไป (cause=wound)',
+      newRoleInfo.steps &&
+        newRoleInfo.steps.tough1 &&
+        newRoleInfo.steps.tough1.alive === true &&
+        newRoleInfo.steps.tough1.wounded === true &&
+        newRoleInfo.steps.tough2 &&
+        newRoleInfo.steps.tough2.dead === true &&
+        newRoleInfo.steps.tough2.cause === 'wound',
+      JSON.stringify(newRoleInfo.steps)
+    );
+    check(
+      'S14 แวมไพร์: หมาป่ากัดไม่ตาย + เหยื่อกัดตายวันรุ่งขึ้น (cause=bite)',
+      newRoleInfo.steps &&
+        newRoleInfo.steps.vamp1 &&
+        newRoleInfo.steps.vamp1.vampAlive === true &&
+        newRoleInfo.steps.vamp1.victimAlive === true &&
+        newRoleInfo.steps.vamp1.bitten === true &&
+        newRoleInfo.steps.vamp2 &&
+        newRoleInfo.steps.vamp2.dead === true &&
+        newRoleInfo.steps.vamp2.cause === 'bite',
+      JSON.stringify(newRoleInfo.steps)
+    );
+    check(
+      'S14 lycan ถูกเทพพยากรณ์อ่านเป็นหมาป่า + นักบวชคุ้มกันรอด + ปิดปากแจ้งตอนรุ่งเช้า',
+      newRoleInfo.steps &&
+        newRoleInfo.steps.lycanSeer === true &&
+        newRoleInfo.steps.protect &&
+        newRoleInfo.steps.protect.lycAlive === true &&
+        newRoleInfo.steps.protect.silenceKept === true &&
+        newRoleInfo.steps.protect.dawnShowsSilence === true,
+      JSON.stringify(newRoleInfo.steps && newRoleInfo.steps.protect)
+    );
+    check(
+      'S14 ผู้รักสันติโหวตข้ามเสมอ + ตัวป่วนบังคับโหวต (กดข้ามไม่ได้)',
+      newRoleInfo.steps &&
+        newRoleInfo.steps.pacifist === true &&
+        newRoleInfo.steps.forceVote &&
+        newRoleInfo.steps.forceVote.uiWarns === true &&
+        newRoleInfo.steps.forceVote.skipBlocked === true,
+      JSON.stringify(newRoleInfo.steps && newRoleInfo.steps.forceVote)
+    );
+    check(
+      'S14 เงื่อนไขชนะใหม่: lone wolf (suppressed/last) + cult + hoodlum + tanner(โหวต)',
+      newRoleInfo.steps &&
+        newRoleInfo.steps.paritySuppressed === true &&
+        newRoleInfo.steps.loneWin === 'lonewolf' &&
+        newRoleInfo.steps.cultWin === 'cult' &&
+        newRoleInfo.steps.hoodlumWin === 'hoodlum' &&
+        newRoleInfo.steps.tannerVote &&
+        newRoleInfo.steps.tannerVote.winner === 'tanner',
+      JSON.stringify(newRoleInfo.steps)
+    );
+    check(
+      'S14 การ์ด night ของบทบาทใหม่แสดงครบ + เปิดทุกหน้าไม่ throw',
+      newRoleInfo.steps &&
+        newRoleInfo.steps.nightCards === true &&
+        newRoleInfo.steps.openErr == null &&
+        newRoleInfo.steps.protect &&
+        newRoleInfo.steps.protect.activeHasPriest === true &&
+        newRoleInfo.steps.protect.activeHasSpell === true,
+      JSON.stringify(newRoleInfo.steps && {nightCards: newRoleInfo.steps.nightCards, openErr: newRoleInfo.steps.openErr})
+    );
+    check('S14 scenario รันครบไม่ throw', !newRoleInfo.error, JSON.stringify(newRoleInfo.error || ''));
+
+    /* ===== S15: เกมจบทั้งเกมด้วยบทบาทใหม่ + รูปครบทุกบทบาท ===== */
+    const imgMissing = await ev('Object.keys(ROLES)');
+    const missing = (Array.isArray(imgMissing) ? imgMissing : []).filter(r => !fs.existsSync(path.join(ROOT, 'assets', 'roles', r + '.jpg')));
+    check('S15 มีรูปครบทุกบทบาท (assets/roles/<roleId>.jpg)', missing.length === 0, JSON.stringify(missing));
+    check('S15 มีรูป fallback assets/role.jpg', fs.existsSync(path.join(ROOT, 'assets', 'role.jpg')));
+
+    const bigGame =
+      (await ev(`(async () => {
+      newGameEnd();
+      S.setup.n = 18;
+      S.setup.names = Array.from({length:18}, (_,i)=>'B'+(i+1));
+      S.setup.roles = Object.assign(zeroRoles(), {
+        werewolf:2, minion:1, sorceress:1, lone_wolf:1, apprentice_seer:1, priest:1, pi:1,
+        tough_guy:1, spellcaster:1, pacifist:1, virginia_woolf:1, troublemaker:1,
+        tanner:1, cult_leader:1, vampire:1, hoodlum:1
+      });
+      S.setup.assignMode = 'random';
+      const can = canStart();
+      const warn = balanceWarnings().filter(x => x.indexOf('⚠') === 0);
+      const vill = villagerCount();
+      startGame();
+      let guard = 0;
+      while(S.screen === 'reveal' && guard++ < 60) nextRv();
+      let rounds = 0;
+      let screens = [];
+      while (rounds < 40) {
+        const sc = S.screen;
+        screens.push(sc);
+        if (sc === 'end') break;
+        if (sc !== 'night') { screens.push('STUCK:' + sc); break; }
+        await __T.playRound();
+        rounds++;
+      }
+      const res = {
+        can, warn, vill, rounds, screen: S.screen,
+        winner: S.g ? S.g.winner : null,
+        reason: S.g ? S.g.winReason : null,
+        alive: S.g ? alive().length : -1,
+        nDoneUsed: S.ui ? Object.keys(S.ui.nDone || {}).length : -1
+      };
+      S.g = null; S.ui = newUI(); S.screen = 'home'; render();
+      return res;
+    })()`)) || {};
+    check(
+      'S15 ชุดบทบาทใหม่ 18 คน: canStart + ไม่มี ⚠ + มีชาวบ้าน 1',
+      bigGame.can === true && Array.isArray(bigGame.warn) && bigGame.warn.length === 0 && bigGame.vill === 1,
+      JSON.stringify(bigGame)
+    );
+    check(
+      'S15 เกม 18 คน (บทบาทใหม่ 15 ชนิด) เล่นจบทั้งเกมโดยไม่ค้าง',
+      bigGame.screen === 'end' && ['village', 'werewolf', 'lovers', 'tanner', 'lonewolf', 'cult', 'vampire', 'hoodlum'].includes(bigGame.winner),
+      JSON.stringify(bigGame)
+    );
+
     /* ===== report ===== */
     const failed = results.filter(r => !r.ok);
     console.log('\n========================================');
@@ -833,6 +1136,27 @@ async function main() {
   } catch (err) {
     console.error('\nTEST ERROR:', err.message);
     if (pageErrors.length) console.error('page errors:', pageErrors.slice(0, 5));
+    console.error('diag:', JSON.stringify({wsClosed, wsState: ws ? ws.readyState : null, events: typeof eventLog !== 'undefined' ? eventLog.slice(-8) : []}));
+    try {
+      const probe = await ev('({hb:window.__hb, screen: typeof S !== "undefined" ? S.screen : null})', 4000);
+      console.error('probe:', JSON.stringify(probe));
+    } catch (e) {
+      console.error('probe failed:', e.message);
+    }
+    try {
+      const shot = await send('Page.captureScreenshot', {format: 'png'});
+      const shotPath = path.join(os.tmpdir(), 'ww-smoke-hang.png');
+      fs.writeFileSync(shotPath, Buffer.from(shot.result.data, 'base64'));
+      console.error('screenshot:', shotPath);
+    } catch (e) {
+      console.error('screenshot failed:', e.message);
+    }
+    try {
+      const tgts = await fetch(`http://127.0.0.1:${CDP_PORT}/json/list`).then(r => r.json());
+      console.error('targets:', JSON.stringify(tgts.map(x => ({type: x.type, url: (x.url || '').slice(0, 70)}))));
+    } catch (e) {
+      console.error('targets failed:', e.message);
+    }
     cleanup();
     process.exit(2);
   }
