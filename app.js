@@ -79,7 +79,7 @@ const ROLES = {
 const ROLE_IMG_DIR = 'assets/roles';
 const ROLE_IMG_FALLBACK = 'assets/role.jpg';
 function roleImg(roleId, cls) {
-  return `<img class="rimg${cls ? ' ' + cls : ''}" src="${ROLE_IMG_DIR}/${esc(roleId)}.jpg" alt="" width="360" height="480" decoding="async" onerror="this.onerror=null;this.src='${ROLE_IMG_FALLBACK}'">`;
+  return `<img class="rimg${cls ? ' ' + cls : ''}" src="${ROLE_IMG_DIR}/${esc(roleId)}.jpg" alt="" width="180" height="240" decoding="async" onerror="this.onerror=null;this.src='${ROLE_IMG_FALLBACK}'">`;
 }
 const WOLF_GROUP = ['werewolf', 'wolfcub', 'minion', 'sorceress', 'lone_wolf'];
 const VILLAGE_GROUP = [
@@ -857,7 +857,8 @@ const TRIM_ORDER = [
   'wolfcub',
   'seer',
   'witch',
-  'werewolf'
+  'werewolf',
+  'villager'
 ];
 
 function zeroRoles() {
@@ -1018,7 +1019,7 @@ function balanceWarnings() {
   if (cursed > 0 && w === 0) msgs.push('💡 ผู้ต้องคำสาปต้องมีหมาป่าในเกมจึงจะทำงาน');
   if (infected > 0 && w === 0) msgs.push('💡 ผู้ป่วยติดเชื้อต้องมีหมาป่าในเกมจึงจะทำงาน');
   if (S.setup.roles.wolfcub > 0 && S.setup.roles.werewolf === 0) msgs.push('💡 ลูกหมาป่าควรมีหมาป่าอย่างน้อย 1 ตัว');
-  if (villagerCount() === 0 && !msgs.length) msgs.push('💡 ไม่มีชาวบ้านธรรมดา → เกมจะสั้นลง');
+  if (totalVillagers() === 0 && !msgs.length) msgs.push('💡 ไม่มีชาวบ้านธรรมดา → เกมจะสั้นลง');
   if ((S.setup.roles.lone_wolf || 0) > 0 && w === 0) msgs.push('💡 หมาป่าเดียวดายควรอยู่ร่วมเกมกับหมาป่าทีม');
   if ((S.setup.roles.cult_leader || 0) > 0 && S.setup.n < 8) msgs.push('💡 ลัทธิแนะนำผู้เล่น 8 คนขึ้นไป');
   if ((S.setup.roles.vampire || 0) > 0 && S.setup.n < 10) msgs.push('💡 แวมไพร์แนะนำผู้เล่น 10 คนขึ้นไป');
@@ -1049,39 +1050,124 @@ function balanceMeter() {
 function totalVillagers() {
   return (S.setup.roles.villager || 0) + villagerCount();
 }
+let lastAutoSig = '';
 function autoBalanceRoles() {
   const n = S.setup.n;
-  for (const r of SPECIAL) S.setup.roles[r] = 0;
-  const wolves = n >= 16 ? 4 : n >= 12 ? 3 : n >= 8 ? 2 : 1;
-  S.setup.roles.werewolf = wolves;
-  const tiers = [
-    {min: 5, roles: ['seer', 'witch']},
-    {min: 6, roles: ['hunter']},
-    {min: 7, roles: ['bodyguard']},
-    {min: 8, roles: ['priest', 'cupid']},
-    {min: 10, roles: ['grandma', 'mayor']},
-    {min: 11, roles: ['prince']},
-    {min: 12, roles: ['cursed', 'ghost']},
-    {min: 14, roles: ['infected', 'tough_guy']},
-    {min: 15, roles: ['minion']},
-    {min: 16, roles: ['spellcaster', 'pi']},
-    {min: 17, roles: ['sorceress']},
-    {min: 18, roles: ['apprentice_seer']}
-  ];
-  for (const t of tiers) {
-    if (n < t.min) continue;
-    for (const r of t.roles) {
-      if (totalRoles() >= n - 2) break;
-      S.setup.roles[r] = 1;
+  const prevSig = rolesSig(S.setup.roles);
+  const MIN_N = {
+    seer: 4,
+    witch: 4,
+    hunter: 5,
+    bodyguard: 5,
+    lycan: 5,
+    wolfcub: 5,
+    apprentice_seer: 5,
+    cupid: 6,
+    cursed: 6,
+    ghost: 6,
+    mayor: 6,
+    pacifist: 6,
+    tanner: 6,
+    virginia_woolf: 7,
+    troublemaker: 7,
+    priest: 7,
+    minion: 7,
+    lone_wolf: 7,
+    tough_guy: 7,
+    pi: 8,
+    infected: 8,
+    prince: 8,
+    grandma: 8,
+    sorceress: 8,
+    cult_leader: 8,
+    hoodlum: 8,
+    spellcaster: 9,
+    vampire: 10
+  };
+  const pool = SPECIAL.filter(r => r !== 'werewolf' && r !== 'villager' && r !== 'wolfcub' && (MIN_N[r] || 4) <= n);
+  const scoreOf = R => {
+    let s = n;
+    for (const k of SPECIAL) {
+      const c = R[k] || 0;
+      if (!c || k === 'villager') continue;
+      s += (((ROLES[k] && ROLES[k].bp) || 0) - 1) * c;
     }
-  }
-  if (n >= 8) {
-    const extras = shuffle(['lycan', 'pacifist', 'troublemaker', 'virginia_woolf']);
-    for (const r of extras) {
-      if (totalRoles() >= n - 2) break;
-      S.setup.roles[r] = 1;
+    return s;
+  };
+  const buildCandidate = () => {
+    const R = zeroRoles();
+    const minW = n >= 10 ? 2 : 1;
+    const maxW = Math.max(minW, Math.min(n >= 16 ? 4 : n >= 12 ? 3 : 2, Math.floor((n - 1) / 2)));
+    const wt = minW + Math.floor(Math.random() * (maxW - minW + 1));
+    const cub = wt >= 2 && Math.random() < 0.4;
+    R.werewolf = cub ? wt - 1 : wt;
+    R.wolfcub = cub ? 1 : 0;
+    const order = shuffle(pool.slice());
+    const greedy = Math.random() < 0.7;
+    let score = scoreOf(R);
+    let placed = wt;
+    for (let steps = 0; steps < n && placed < n - 1; steps++) {
+      const opts = [];
+      for (const r of order) {
+        if (R[r]) continue;
+        if (r === 'apprentice_seer' && !R.seer) continue;
+        const ns = score + (((ROLES[r] && ROLES[r].bp) || 0) - 1);
+        if (Math.abs(ns) < Math.abs(score)) opts.push([r, ns]);
+      }
+      if (!opts.length) break;
+      let pick;
+      if (greedy) {
+        let best = Infinity;
+        for (const o of opts) best = Math.min(best, Math.abs(o[1]));
+        const top = opts.filter(o => Math.abs(o[1]) === best);
+        pick = top[Math.floor(Math.random() * top.length)][0];
+      } else {
+        pick = opts[0][0];
+      }
+      R[pick] = 1;
+      score += ((ROLES[pick] && ROLES[pick].bp) || 0) - 1;
+      placed++;
     }
+    return R;
+  };
+  const evalCand = R => {
+    const old = S.setup.roles;
+    S.setup.roles = R;
+    const ok = canStart() && balanceWarnings().length === 0;
+    const sc = balanceScore();
+    const sig = rolesSig(R);
+    S.setup.roles = old;
+    return ok ? {R, sc, sig} : null;
+  };
+  const cands = [];
+  for (let i = 0; i < 60; i++) {
+    const c = evalCand(buildCandidate());
+    if (c) cands.push(c);
   }
+  if (cands.length) {
+    let minAbs = Infinity;
+    for (const c of cands) minAbs = Math.min(minAbs, Math.abs(c.sc));
+    const thr = Math.max(minAbs, 2);
+    const inThr = cands.filter(c => Math.abs(c.sc) <= thr);
+    const excluded = new Set([prevSig, lastAutoSig]);
+    let elig = inThr.filter(c => !excluded.has(c.sig));
+    if (!elig.length) elig = inThr;
+    if (!elig.length) elig = cands;
+    const pick = elig[Math.floor(Math.random() * elig.length)];
+    S.setup.roles = pick.R;
+  }
+  let sig = rolesSig(S.setup.roles);
+  if (sig === prevSig || (lastAutoSig && sig === lastAutoSig)) {
+    const un = n - totalRoles();
+    const options = [];
+    for (let k = 0; k < un; k++) {
+      const trial = {...S.setup.roles, villager: k};
+      const sg = rolesSig(trial);
+      if (sg !== prevSig && sg !== lastAutoSig) options.push(trial);
+    }
+    if (options.length) S.setup.roles = options[Math.floor(Math.random() * options.length)];
+  }
+  lastAutoSig = rolesSig(S.setup.roles);
   vibrate(15);
   render();
 }
@@ -1239,7 +1325,7 @@ function isAssignValid() {
   }
   const deck = {};
   for (const r of SPECIAL) deck[r] = S.setup.roles[r] || 0;
-  deck.villager = villagerCount();
+  deck.villager = totalVillagers();
   for (const r of SPECIAL) if ((used[r] || 0) !== (deck[r] || 0)) return false;
   if ((used.villager || 0) !== deck.villager) return false;
   return true;
@@ -3189,7 +3275,7 @@ function renderSetup() {
       <div class="role-card__image">${roleImg(r, 'rimg-large')}</div>
       <div class="role-card__info">
         <div class="role-card__name">${R.name}${tag}</div>
-        <div class="role-card__desc">${R.desc}</div>
+        <div class="role-card__desc" title="แตะเพื่อดูคำอธิบายเต็ม" onclick="this.classList.toggle('open')">${R.desc}</div>
       </div>
       <div class="role-card__controls">
         <div class="cnt">
@@ -3301,7 +3387,7 @@ function renderSetup() {
 function renderAssign() {
   const deck = {};
   for (const r of SPECIAL) deck[r] = S.setup.roles[r] || 0;
-  deck.villager = villagerCount();
+  deck.villager = totalVillagers();
   const assign = S.ui.assign || {};
   const used = {};
   for (const pid in assign) {
@@ -3312,7 +3398,7 @@ function renderAssign() {
   for (const r of SPECIAL) if (deck[r] > 0) rolesToShow.add(r);
   if (deck.villager > 0) rolesToShow.add('villager');
   for (const pid in assign) rolesToShow.add(assign[pid]);
-  const allRoles = [...SPECIAL, 'villager'].filter(r => rolesToShow.has(r));
+  const allRoles = SPECIAL.filter(r => rolesToShow.has(r));
   const poolRows = allRoles
     .map(r => {
       const total = deck[r];

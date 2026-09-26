@@ -478,14 +478,29 @@ async function main() {
         incRole('villager'); incRole('villager'); incRole('villager');
         const villCnt = S.setup.roles.villager || 0;
         const bad = [];
-        for (const n of [4, 6, 8, 10, 12, 15, 18]) {
+        const scoreBad = [];
+        for (let n = 4; n <= 18; n++) {
           S.setup.n = n;
           S.setup.roles = zeroRoles();
           autoBalanceRoles();
           if (!canStart()) bad.push(n + ':canStart');
           if (villagerCount() < 1) bad.push(n + ':noVillager');
           if (totalRoles() > n) bad.push(n + ':over');
-          if (balanceWarnings().some(w => w.charAt(0) === '\u26a0')) bad.push(n + ':warn');
+          if (balanceWarnings().some(w => w.charAt(0) === '\\u26a0')) bad.push(n + ':warn');
+          const bs = Math.abs(balanceScore());
+          if (bs > 2) scoreBad.push(n + ':' + bs);
+        }
+        const rep = [];
+        for (const n of [4, 8, 12, 18]) {
+          S.setup.n = n;
+          S.setup.roles = zeroRoles();
+          autoBalanceRoles();
+          const a = rolesSig(S.setup.roles);
+          autoBalanceRoles();
+          const b = rolesSig(S.setup.roles);
+          autoBalanceRoles();
+          const c = rolesSig(S.setup.roles);
+          if (!(a !== b && b !== c)) rep.push(n + ':' + a + ' | ' + b + ' | ' + c);
         }
         S.setup.n = 8;
         S.setup.roles = zeroRoles();
@@ -497,10 +512,27 @@ async function main() {
         const hasSummary = sumHtml.includes('สรุปบทบาท') && sumHtml.includes('ชาวบ้าน');
         const sumTxt = buildRoleSummaryText();
         const hasTxt = sumTxt.includes('ฝ่ายหมาป่า') && sumTxt.includes('คะแนนสมดุล');
+        const img = document.querySelector('.role-card .rimg-large');
+        const imgOk = !!img && img.getAttribute('width') === '180' && img.getAttribute('height') === '240';
+        const gridCols = getComputedStyle(document.querySelector('.role-grid')).gridTemplateColumns.split(' ').length;
+        const descOk = !!document.querySelector('.role-card__desc');
+        S.setup.n = 8;
+        S.setup.roles = zeroRoles();
+        S.setup.roles.werewolf = 2; S.setup.roles.seer = 1; S.setup.roles.villager = 3;
+        const dck = buildRandomDeck();
+        const deckVill = dck.filter(x => x === 'villager').length;
+        const oldAssign = S.ui.assign;
+        S.ui.assign = {};
+        for (let i = 0; i < 8; i++) S.ui.assign[i] = dck[i];
+        const manualValid = isAssignValid();
+        S.ui.assign = oldAssign;
         S.setup.n = snap.n; S.setup.roles = snap.roles; S.setup.assignMode = snap.mode;
         render();
-        return {singleHasVillager, villCnt, plusWorks, bad, hasSummary, hasTxt};
+        return {singleHasVillager, villCnt, plusWorks, bad, scoreBad, rep, hasSummary, hasTxt, imgOk, gridCols, descOk, deckVill, manualValid};
       })()`)) || {};
+    const gridCssOk = await ev(
+      `fetch('styles.css').then(r => r.text()).then(t => { const m = t.match(/\\.role-grid\\s*\\{[^}]*\\}/); return !!m && m[0].includes('repeat(2'); })`
+    );
     check('S3c ชาวบ้านเพิ่มได้เกิน 1 คน (ไม่ถูกจำกัด singleton)', featInfo.singleHasVillager === false && featInfo.villCnt === 3, JSON.stringify(featInfo));
     check('S3c ปุ่ม + ของชาวบ้านในหน้าตั้งค่าใช้ได้', featInfo.plusWorks === true);
     check(
@@ -508,13 +540,37 @@ async function main() {
       Array.isArray(featInfo.bad) && featInfo.bad.length === 0,
       JSON.stringify(featInfo.bad || [])
     );
+    check(
+      'S3c autoBalanceRoles ทุกขนาด 4-18 คน: คะแนนสมดุล |score| ≤ 2 (ใกล้ 0)',
+      Array.isArray(featInfo.scoreBad) && featInfo.scoreBad.length === 0,
+      JSON.stringify(featInfo.scoreBad || [])
+    );
+    check(
+      'S3c กดสุ่มซ้ำ 3 ครั้ง x 4/8/12/18 คน: ผลลัพธ์ต่างกันทุกครั้ง',
+      Array.isArray(featInfo.rep) && featInfo.rep.length === 0,
+      JSON.stringify(featInfo.rep || [])
+    );
     check('S3c การ์ดสรุปบทบาท + ข้อความสรุปก่อนเริ่มเกม', featInfo.hasSummary === true && featInfo.hasTxt === true, JSON.stringify(featInfo));
+    check(
+      'S3c รูปบทบาท 180×240 + กริดอย่างน้อย 2 คอลัมน์ + desc แตะขยายได้',
+      featInfo.imgOk === true && featInfo.gridCols >= 2 && featInfo.descOk === true && gridCssOk === true,
+      JSON.stringify({imgOk: featInfo.imgOk, gridCols: featInfo.gridCols, descOk: featInfo.descOk, gridCssOk})
+    );
+    check(
+      'S3c manual: ชาวบ้านระบุเอง 3 ตัว → deck ครบ 5 + isAssignValid ผ่าน',
+      featInfo.deckVill === 5 && featInfo.manualValid === true,
+      JSON.stringify({deckVill: featInfo.deckVill, manualValid: featInfo.manualValid})
+    );
 
     await ev('startGame()');
     check('S3 manual mode → หน้าจัดบทบาท', (await ev('S.screen')) === 'assign');
     check('S3 บทบาทในตารางถูกต้อง (isAssignValid)', (await ev('isAssignValid()')) === true);
     await ev('reshuffleAssign()');
     check('S3 สุ่มบทบาทใหม่ยัง valid', (await ev('isAssignValid()')) === true);
+    const villOpts = await ev(
+      `(()=>{const s=document.querySelector('.role-sel'); return s ? Array.from(s.querySelectorAll('option')).filter(o=>o.value==='villager').length : -1;})()`
+    );
+    check('S3 dropdown บทบาท: ตัวเลือกชาวบ้านไม่ซ้ำ (SPECIAL มี villager แล้ว)', villOpts === 1, 'count=' + villOpts);
     await ev('confirmAssign()');
     check('S3 ยืนยัน → หน้าแจกการ์ด', (await ev('S.screen')) === 'reveal');
 
