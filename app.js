@@ -1,5 +1,11 @@
 'use strict';
 
+/* ตรรกะเกมล้วนอยู่ใน game-logic.js (โหลดก่อนหน้า — ใช้ unit test ใน Node ได้ด้วย) */
+const GL = window.GameLogic;
+function logicCtx() {
+  return {setup: S.setup, roles: ROLES, special: SPECIAL};
+}
+
 /* ========== DATA ========== */
 /* bp = คะแนนสมดุลจากการ์ดจริง (บวก = ช่วยหมู่บ้าน, ลบ = ช่วยหมาป่า) ยึดตัวเลขบนการ์ดเป็นหลัก */
 const ROLES = {
@@ -76,6 +82,53 @@ const ROLES = {
   hoodlum: {name: 'นักเลง (Hoodlum)', icon: '🗡️', faction: 'neutral', bp: 0, desc: 'คืนแรกเลือก 2 เป้า — ชนะเมื่อทั้งคู่ตายและตัวเองรอด'},
   villager: {name: 'ชาวบ้าน (Villager)', icon: '👤', faction: 'village', bp: 1, desc: 'ไม่มีพลังพิเศษ — ใช้เหตุผลและการสังเกตหาหมาป่า'}
 };
+/* เงื่อนไขชนะ + จุดสำคัญ สำหรับหน้า "📖 บทบาททั้งหมด" (RULE_GUIDE ต้องสอดคล้องกับ checkWin/endNight) */
+const ROLE_GUIDE = {
+  werewolf: {win: 'ฝ่ายหมาป่าเท่าหรือมากกว่าชาวบ้านที่เหลือ → ชนะทันที', note: 'ทุกคืนเลือกเหยื่อ 1 คน · ถ้าลูกหมาป่าเพิ่งตาย คืนนี้เลือก 2 คน'},
+  wolfcub: {win: 'ชนะพร้อมฝ่ายหมาป่า (กฎ parity เดียวกับหมาป่า)', note: 'เมื่อถูกกำจัด คืนถัดไปหมาป่าเลือก 2 คน (ใช้ได้ 1 ครั้ง)'},
+  minion: {win: 'ชนะพร้อมฝ่ายหมาป่า', note: 'เห็นชื่อหมาป่าในการ์ด · ไม่ตื่นกลางคืน · ยังนับเป็นฝ่ายหมาป่าในกฎ parity'},
+  sorceress: {win: 'ชนะพร้อมฝ่ายหมาป่า', note: 'ทุกคืนค้น 1 คนว่าเป็นเทพพยากรณ์หรือไม่ (ไม่ตื่นพร้อมหมาป่า)'},
+  lone_wolf: {win: 'เหลือรอดเป็นคนสุดท้าย → ชนะทันที', note: 'อยู่ฝ่ายเดียว — กฎ parity ของหมาป่าถูกกดไว้จนกว่าจะไม่มีชาวบ้านเหลือ'},
+  seer: {win: 'ล้างฝ่ายหมาป่าหมด → ชาวบ้านชนะ', note: 'ทุกคืนตรวจสอบ 1 คนว่าเป็นฝ่ายหมาป่าหรือไม่'},
+  apprentice_seer: {win: 'ล้างฝ่ายหมาป่าหมด → ชาวบ้านชนะ', note: 'เมื่อเทพพยากรณ์ตาย จะเลื่อนขั้นตรวจแทนทุกคืน'},
+  witch: {win: 'ล้างฝ่ายหมาป่าหมด → ชาวบ้านชนะ', note: 'ยารักษา 1 + ยาพิษ 1 (คืนละ 1 ข้ำ ใช้หรือไม่ใช้ก็ได้) · ยารักษาสกัดการตายของหมาป่าคืนนั้น'},
+  hunter: {win: 'ล้างฝ่ายหมาป่าหมด → ชาวบ้านชนะ', note: 'ถูกกำจัดทางใดก็ยิง 1 คนก่อนตาย · ยิงโดนยาจก → ยาจกชนะทันที'},
+  bodyguard: {win: 'ล้างฝ่ายหมาป่าหมด → ชาวบ้านชนะ', note: 'คุ้มกัน 1 คน/คืน — ถ้าถูกหมาป่ากัดจะรอด (คุ้มกันซ้อนกันได้)'},
+  priest: {win: 'ล้างฝ่ายหมาป่าหมด → ชาวบ้านชนะ', note: 'คุ้มกัน 1 คน ใช้ได้ 1 ครั้งตลอดเกม · เซฟซ้อนกับบอดี้การ์ด/ยารักษาได้'},
+  pi: {win: 'ล้างฝ่ายหมาป่าหมด → ชาวบ้านชนะ', note: 'ตรวจนัดเดียว: เป้าหมาย + เพื่อนบ้านซ้าย/ขวา มีหมาป่าไหม · ใช้แล้วหายจากกลางคืน'},
+  tough_guy: {win: 'ล้างฝ่ายหมาป่าหมด → ชาวบ้านชนะ', note: 'ถูกกัดไม่ตายทันที — บาดเจ็บแล้วตายคืนถัดไป (ไม่มีอะไรกันแผลนี้ได้)'},
+  infected: {win: 'ล้างฝ่ายหมาป่าหมด → ชาวบ้านชนะ', note: 'ถูกกัด → ตาย + หมาป่าติดเชื้อ คืนถัดไปฆ่าใครไม่ตาย (1 คืน)'},
+  prince: {win: 'ล้างฝ่ายหมาป่าหมด → ชาวบ้านชนะ', note: 'ถูกโหวตครั้งแรกไม่ตาย + เปิดเผยตัวตน · ครั้งที่สองตายปกติ'},
+  mayor: {win: 'ล้างฝ่ายหมาป่าหมด → ชาวบ้านชนะ', note: 'เสียงโหวตมีน้ำหนัก 2 เสียง'},
+  ghost: {win: 'ล้างฝ่ายหมาป่าหมด → ชาวบ้านชนะ', note: 'เสียชีวิตคืนแรก + ส่งเบาะแส 1 ตัวอักษร/วัน · ตายแล้วยังเป็นเป้าโหวตได้'},
+  spellcaster: {win: 'ล้างฝ่ายหมาป่าหมด → ชาวบ้านชนะ', note: 'ปิดปาก 1 คน/คืน — ห้ามพูดและห้ามโหวตวันรุ่งขึ้น'},
+  grandma: {win: 'ล้างฝ่ายหมาป่าหมด → ชาวบ้านชนะ', note: 'ขับไล่ 1 คน/คืน — คนนั้นไม่มีสิทธิ์โหวตวันนั้น (ไม่ได้ฆ่า)'},
+  cupid: {win: 'คู่รักต่างฝ่ายเหลือ 2 คนสุดท้าย → "คู่รัก" ชนะทันที · ไม่งั้นชนะพร้อมชาวบ้าน', note: 'จับคู่รัก 2 คนคืนแรก · คู่รักตายตามกันเสมอ'},
+  cursed: {win: 'ยังไม่ถูกกัด → ชนะพร้อมชาวบ้าน · ถูกกัดแล้ว → ชนะพร้อมหมาป่า', note: 'ถูกหมาป่ากัด = กลายเป็นหมาป่าไม่ตาย · ถูกกัด+วางยาพร้อมกัน = ตาย'},
+  lycan: {win: 'ล้างฝ่ายหมาป่าหมด → ชาวบ้านชนะ', note: 'เทพพยากรณ์อ่านว่าเป็น "หมาป่า" เสมอ (ผลเท็จ)'},
+  pacifist: {win: 'ล้างฝ่ายหมาป่าหมด → ชาวบ้านชนะ', note: 'โหวต "ข้าม" เสมอ — โหวตฆ่าใครไม่ได้'},
+  virginia_woolf: {win: 'ล้างฝ่ายหมาป่าหมด → ชาวบ้านชนะ', note: 'ถูกกำจัด → คนที่เลือกไว้คืนแรกตายตามทันที'},
+  troublemaker: {win: 'ล้างฝ่ายหมาป่าหมด → ชาวบ้านชนะ', note: '1 ครั้ง/เกม: วันถัดไปทุกคนต้องโหวต ห้ามข้าม'},
+  tanner: {win: 'ถูกกำจัดออกจากเกมทางใดทางหนึ่ง (โหวต/กัด/ยิง/ยาพิษ) → ชนะทันที', note: 'ไม่สนฝ่าย — อยากถูกโหวตออกจากเกมที่สุด'},
+  cult_leader: {win: 'ทุกคนที่ยังรอดอยู่ในลัทธิครบ (รวมเจ้าลัทธิ) → ชนะทันที', note: 'ชวน 1 คน/คืน · ชวนได้ทุกฝ่าย'},
+  vampire: {win: 'เหลือรอดเป็นคนสุดท้าย → ชนะทันที', note: 'กัด 1 คน/คืน → เหยื่อตายวันรุ่งขึ้น · ถูกหมาป่ากัดไม่ตาย'},
+  hoodlum: {win: 'เป้าหมายทั้ง 2 ตาย + ตัวเองยังรอด → ชนะทันที', note: 'คืนแรกเลือก 2 เป้า'},
+  villager: {win: 'ล้างฝ่ายหมาป่าหมด → ชาวบ้านชนะ', note: 'ไม่มีพลังพิเศษ — ใช้เหตุผลและการสังเกตล้วน'}
+};
+const INTERACTIONS = [
+  '🛡️ การกันตาย — บอดี้การ์ด + นักบวช + ยารักษาแม่มด ป้องกันเป้าหมายจากหมาป่าได้ (เซฟซ้อนกันได้หลายชั้น)',
+  '🌀 ผู้ต้องคำสาป — ถูกกัด = กลายเป็นหมาป่าไม่ตาย · ถูกกัด+วางยาพร้อมกัน = ตาย (นับเป็นหมาป่า)',
+  '👁️ เทพพยากรณ์ × ไลแคน — อ่านไลแคนได้ผลว่าเป็น "หมาป่า" เสมอ (เท็จ)',
+  '🩹 นักเลงทนทาน — ถูกกัดไม่ตายทันที แต่ตายคืนถัดไปเอง ไม่มีอะไรกันแผลนี้ได้',
+  '🦠 ผู้ป่วยติดเชื้อ — ถูกกัดแล้วตาย + ทำให้หมาป่าติดเชื้อ คืนถัดไปหมาป่าฆ่าไม่ตาย (1 คืน)',
+  '🧛 แวมไพร์ — ถูกหมาป่ากัดไม่ตาย · เหยื่อที่กัดตายวันรุ่งขึ้น (ข้ามการคุ้มกัน)',
+  '💘 คู่รัก — ตายตามกันเสมอ · คู่รักต่างฝ่ายเหลือ 2 คนสุดท้าย = คู่รักชนะ (ทับกฎ parity)',
+  '🐾 ลูกหมาป่า — ตายแล้วคืนถัดไปหมาป่าเลือก 2 คน (จนจบเกม)',
+  '🎭 ตัวป่วน — บังคับโหวตวันถัดไป ห้ามข้าม (กฎ "ข้ามมากกว่าโหวต" ยกเว้นวันนี้)',
+  '⚖️ ข้าม vs โหวต — ข้ามมากกว่า = โหวตไม่มีผล · เท่ากัน = ล้างโหวตใหม่ทั้งหมด',
+  '🎯 นายพราน — ยิงโต้ได้ทุกจังหวะที่ตาย · ยิงโดนยาจก = ยาจกชนะทันที',
+  '👵 ยายแก่ / 🔇 นักเวท — ขับไล่ = ห้ามโหวตวันนั้น · ปิดปาก = ห้ามพูดและโหวตวันรุ่งขึ้น'
+];
 const ROLE_IMG_DIR = 'assets/roles';
 const ROLE_IMG_FALLBACK = 'assets/role.jpg';
 function roleImg(roleId, cls) {
@@ -231,14 +284,10 @@ const getP = id => (S.g ? S.g.players.find(p => p.id === id) : null);
 const timerCls = () => (S.ui.timer <= 10 ? 'dg' : S.ui.timer <= 30 ? 'warn' : '');
 
 function isWolfTeam(p) {
-  if (!p) return false;
-  if (p.roleId === 'cursed') return p.isTurned === true;
-  return ROLES[p.roleId] && ROLES[p.roleId].faction === 'wolf';
+  return GL.isWolfTeam(p, ROLES);
 }
 function getTeamOf(p) {
-  if (!p) return 'village';
-  if (p.roleId === 'cursed') return p.isTurned ? 'wolf' : 'village';
-  return ROLES[p.roleId] ? ROLES[p.roleId].faction : 'village';
+  return GL.getTeamOf(p, ROLES);
 }
 function isWolfTwoTargetMode() {
   if (!S.g || !S.g.night) return false;
@@ -480,7 +529,7 @@ function save() {
     localStorage.setItem(
       saveKey(),
       JSON.stringify({
-        screen: S.screen,
+        screen: S.screen === 'roles' ? 'home' : S.screen,
         g: S.g,
         ui: Object.assign({}, S.ui, {preExecuteSnap: null}),
         setup: S.setup,
@@ -680,6 +729,7 @@ function getScreenLabel(screen) {
     tie: 'คะแนนเสมอ',
     execution: 'แขวนคอ',
     prince: 'เจ้าชาย',
+    roles: 'บทบาททั้งหมด',
     end: 'จบเกม'
   };
   return map[screen] || 'กำลังเล่น';
@@ -933,10 +983,10 @@ function setName(i, v) {
   save();
 }
 function totalRoles() {
-  return SPECIAL.reduce((s, r) => s + (S.setup.roles[r] || 0), 0);
+  return GL.totalRoles(logicCtx());
 }
 function villagerCount() {
-  return S.setup.n - totalRoles();
+  return GL.villagerCount(logicCtx());
 }
 function incRole(r) {
   if (totalRoles() >= S.setup.n) return;
@@ -1149,19 +1199,10 @@ async function deleteCustomPreset(id) {
   render();
 }
 function wolfFactionCount() {
-  let c = 0;
-  for (const r of SPECIAL) {
-    const n = S.setup.roles[r] || 0;
-    if (n > 0 && ROLES[r] && ROLES[r].faction === 'wolf') c += n;
-  }
-  return c;
+  return GL.wolfFactionCount(logicCtx());
 }
 function instantParityWin() {
-  const wf = wolfFactionCount();
-  const v = S.setup.n - wf;
-  if (wf < v) return false;
-  const hasLone = (S.setup.roles.lone_wolf || 0) > 0;
-  return !(hasLone && v > 0);
+  return GL.instantParityWin(logicCtx());
 }
 function canStart() {
   if (totalRoles() > S.setup.n) return false;
@@ -1170,35 +1211,10 @@ function canStart() {
   return !instantParityWin();
 }
 function balanceWarnings() {
-  const msgs = [];
-  const w = (S.setup.roles.werewolf || 0) + (S.setup.roles.wolfcub || 0);
-  const wf = wolfFactionCount();
-  const cursed = S.setup.roles.cursed;
-  const infected = S.setup.roles.infected;
-  const v = S.setup.n - wf;
-  if (w === 0) msgs.push('⚠ ไม่มีหมาป่าในเกม → เริ่มเกมไม่ได้');
-  else if (instantParityWin()) msgs.push('⚠ ฝ่ายหมาป่าเท่าหรือมากกว่าชาวบ้าน → หมาป่าชนะทันที');
-  else if (wf >= v) msgs.push('⚠ ฝ่ายหมาป่ามากกว่าหรือเท่าชาวบ้าน — มีหมาป่าเดียวดายยื้อไว้ แต่แพ้ได้ทุกเมื่อ');
-  else if (w === 1 && S.setup.n >= 10) msgs.push('💡 ผู้เล่น ' + S.setup.n + ' คน แนะนำหมาป่า 2-3 ตัว');
-  else if (w >= 4) msgs.push('💡 หมาป่า 4+ ตัว อาจยากต่อชาวบ้าน');
-  if (cursed > 0 && w === 0) msgs.push('💡 ผู้ต้องคำสาปต้องมีหมาป่าในเกมจึงจะทำงาน');
-  if (infected > 0 && w === 0) msgs.push('💡 ผู้ป่วยติดเชื้อต้องมีหมาป่าในเกมจึงจะทำงาน');
-  if (S.setup.roles.wolfcub > 0 && S.setup.roles.werewolf === 0) msgs.push('💡 ลูกหมาป่าควรมีหมาป่าอย่างน้อย 1 ตัว');
-  if (totalVillagers() === 0 && !msgs.length) msgs.push('💡 ไม่มีชาวบ้านธรรมดา → เกมจะสั้นลง');
-  if ((S.setup.roles.lone_wolf || 0) > 0 && w === 0) msgs.push('💡 หมาป่าเดียวดายควรอยู่ร่วมเกมกับหมาป่าทีม');
-  if ((S.setup.roles.cult_leader || 0) > 0 && S.setup.n < 8) msgs.push('💡 ลัทธิแนะนำผู้เล่น 8 คนขึ้นไป');
-  if ((S.setup.roles.vampire || 0) > 0 && S.setup.n < 10) msgs.push('💡 แวมไพร์แนะนำผู้เล่น 10 คนขึ้นไป');
-  if ((S.setup.roles.hoodlum || 0) > 0 && S.setup.n < 8) msgs.push('💡 นักเลงแนะนำผู้เล่น 8 คนขึ้นไป');
-  if ((S.setup.roles.tanner || 0) > 0 && S.setup.n < 6) msgs.push('💡 ยาจกแนะนำผู้เล่น 6 คนขึ้นไป');
-  return msgs;
+  return GL.balanceWarnings(logicCtx());
 }
 function balanceScore() {
-  let score = villagerCount() * 1;
-  for (const r of SPECIAL) {
-    const bp = (ROLES[r] && ROLES[r].bp) || 0;
-    score += bp * (S.setup.roles[r] || 0);
-  }
-  return score;
+  return GL.balanceScore(logicCtx());
 }
 function balanceMeter() {
   const bs = balanceScore();
@@ -2265,153 +2281,7 @@ async function endNight() {
   const summary = '🌙 สรุปกลางคืนวันที่ ' + S.g.round + ':\n\n' + lines.join('\n') + '\n\nยืนยันจบกลางคืน?';
   if (!(await askConfirm(summary, 'สรุปกลางคืน', {okLabel: 'จบกลางคืน'}))) return;
 
-  const kills = [];
-  if (S.g.night.killTarget !== null) kills.push(S.g.night.killTarget);
-  if (S.g.night.wolfCubBonusActive && S.g.night.killTarget2 !== null) kills.push(S.g.night.killTarget2);
-
-  const protection = new Set();
-  if (S.g.night.bodyguardTarget !== null) protection.add(S.g.night.bodyguardTarget);
-  if (S.g.night.priestTarget !== null) protection.add(S.g.night.priestTarget);
-  if (S.g.night.savedByWitch && S.g.night.savedByWitchTarget != null) {
-    protection.add(S.g.night.savedByWitchTarget);
-  }
-
-  const deaths = [];
-  const cursedTurned = [];
-  const infectedSaveIds = [];
-
-  /* ตายจากแผลถูกกัด (นักเลงทนทาน) และฝีกัดแวมไพร์ — ที่เลื่อนมาจากคืนก่อน */
-  for (const p of S.g.players.slice()) {
-    if (!p.alive) continue;
-    if (p.wounded && p.woundRound === S.g.round) {
-      p.wounded = false;
-      deaths.push(...killP(p.id, 'wound'));
-      addLog('death', '🩸 ' + p.name + ' ตายจากแผลถูกกัด (นักเลงทนทาน)');
-    } else if (p.bitten && p.biteRound === S.g.round) {
-      p.bitten = false;
-      deaths.push(...killP(p.id, 'bite'));
-      addLog('death', '🧛 ' + p.name + ' ตายจากฝีกัดแวมไพร์');
-    }
-  }
-
-  for (const tid of kills) {
-    if (protection.has(tid)) continue;
-    const p = getP(tid);
-    if (!p || !p.alive) continue;
-
-    if (p.roleId === 'vampire') {
-      addLog('night', '🧛 แวมไพร์ ' + p.name + ' ไม่ตายจากการกัดของหมาป่า');
-      continue;
-    }
-
-    if (wolvesInfected) {
-      infectedSaveIds.push(tid);
-      continue;
-    }
-
-    if (p.roleId === 'cursed' && !p.isTurned) {
-      p.isTurned = true;
-      cursedTurned.push(p.id);
-      addLog('night', '🌀 ผู้ต้องคำสาป ' + p.name + ' กลายเป็นหมาป่า');
-      continue;
-    }
-    if (p.roleId === 'tough_guy' && !p.wounded) {
-      p.wounded = true;
-      p.woundRound = S.g.round + 1;
-      addLog('night', '🩸 นักเลงทนทาน ' + p.name + ' ถูกกัด — ยังไม่ตาย แต่จะตายในคืนถัดไป');
-      continue;
-    }
-    if (p.roleId === 'infected') {
-      S.g.wolvesInfectedRound = S.g.round + 1;
-      p.triggeredInfection = true;
-      addLog('night', '🦠 ผู้ป่วยติดเชื้อ ' + p.name + ' ถูกกัด — หมาป่าจะติดเชื้อคืนถัดไป');
-    }
-    deaths.push(...killP(tid, 'night'));
-  }
-
-  /* เหยื่อแวมไพร์ — ตายในวันรุ่งขึ้น */
-  if (S.g.night.biteTarget !== null) {
-    const bp = getP(S.g.night.biteTarget);
-    if (bp && bp.alive && !bp.bitten) {
-      bp.bitten = true;
-      bp.biteRound = S.g.round + 1;
-      addLog('night', '🧛 ' + bp.name + ' ถูกแวมไพร์กัด — จะตายในวันรุ่งขึ้น');
-    }
-  }
-
-  /* ผี — เสียชีวิตตั้งแต่คืนแรก */
-  if (S.g.round === 1) {
-    const ghost = S.g.players.find(p => p.roleId === 'ghost' && p.alive);
-    if (ghost) {
-      deaths.push(...killP(ghost.id, 'ghost'));
-      addLog('death', '👻 ' + ghost.name + ' (ผี) เสียชีวิตตั้งแต่คืนแรก — ยังบอกเบาะแสได้วันละ 1 ตัวอักษร');
-    }
-  }
-
-  if (S.g.night.poisonTarget !== null) {
-    const tid = S.g.night.poisonTarget;
-    const p = getP(tid);
-    if (p && p.alive) {
-      if (cursedTurned.includes(tid)) {
-        addLog('night', '⚠ ' + p.name + ' ถูกกัดและวางยาพร้อมกัน → ตายเป็นหมาป่า');
-      }
-      deaths.push(...killP(tid, 'poison'));
-    }
-  }
-
-  const actualSurvivors = infectedSaveIds.filter(id => {
-    const p = getP(id);
-    return p && p.alive;
-  });
-  if (actualSurvivors.length) {
-    const survivorNames = actualSurvivors.map(id => getP(id).name).join(', ');
-    addLog('night', '🦠 หมาป่าติดเชื้อ — เหยื่อที่ถูกเลือก: ' + survivorNames + ' (รอดทุกคน)');
-  }
-
-  for (const id of deaths) {
-    const p = getP(id);
-    if (!p) continue;
-    const cause = (S.ui.deathCauses && S.ui.deathCauses[id]) || 'night';
-    let msg = '💀 ' + p.name + ' ตายกลางคืน';
-    if (cause === 'poison') msg = '☠️ ' + p.name + ' ตายจากยาพิษ';
-    else if (cause === 'lover') msg = '💔 ' + p.name + ' ตายตามคู่รัก';
-    else if (cause === 'wound') msg = '🩸 ' + p.name + ' ตายจากแผลถูกกัด';
-    else if (cause === 'bite') msg = '🧛 ' + p.name + ' ตายจากฝีกัดแวมไพร์';
-    else if (cause === 'fear') msg = '🪶 ' + p.name + ' ตายตามเวอร์จิเนีย วูล์ฟ';
-    else if (cause === 'ghost') msg = '👻 ' + p.name + ' (ผี) เสียชีวิตตั้งแต่คืนแรก';
-    addLog('death', msg);
-  }
-  markWolfCubDead(deaths);
-
-  const grandP = S.g.players.find(p => p.roleId === 'grandma');
-  if (grandP && !grandP.alive && S.g.night.grandmaTarget !== null && S.g.night.grandmaTarget !== grandP.id) {
-    const banP = getP(S.g.night.grandmaTarget);
-    if (banP && banP.alive) {
-      addLog('death', '👵 ยายแก่ตายก่อนรุ่งเช้า — แต่คำสั่งขับไล่ ' + banP.name + ' ยังมีผลในวันนี้');
-    }
-  }
-
-  /* เบาะแสผี — ทุกรุ่งเช้าเผย 1 ตัวอักษร จนครบคำ */
-  const ghostP = S.g.players.find(p => p.roleId === 'ghost');
-  if (ghostP && !ghostP.alive && S.g.ghostWord && (S.g.ghostRevealed || 0) < S.g.ghostWord.length) {
-    const gi = S.g.ghostRevealed || 0;
-    S.g.ghostRevealed = gi + 1;
-    addLog('info', '👻 ผีส่งเบาะแส (' + S.g.ghostRevealed + '/' + S.g.ghostWord.length + '): ตัวอักษรที่ ' + (gi + 1) + ' = ' + S.g.ghostWord[gi]);
-  }
-
-  S.ui.deaths = deaths;
-  const cursedStillAlive = cursedTurned.length > 0 && !deaths.includes(cursedTurned[0]);
-  S.ui.cursedTurnedTonight = cursedStillAlive ? cursedTurned[0] : null;
-
-  let dh = null;
-  for (const id of deaths) {
-    const p = getP(id);
-    if (p && p.roleId === 'hunter' && !p.usedHunterShot) {
-      dh = id;
-      break;
-    }
-  }
-  S.ui.pendHunter = dh !== null ? {hunterId: dh, context: 'dawn'} : null;
+  GL.applyNightResolution(S.g, S.ui, {killP, addLog, markWolfCubDead});
 
   S.screen = 'dawn';
   beep('night');
@@ -2568,15 +2438,7 @@ async function resetVotes() {
   render();
 }
 function tally() {
-  const t = {};
-  for (const p of alive()) t[p.id] = 0;
-  for (const v of S.ui.votes) {
-    if (v.skip) continue;
-    const voter = getP(v.voterId);
-    const w = voter && voter.isMayor ? 2 : 1;
-    t[v.targetId] = (t[v.targetId] || 0) + w;
-  }
-  return t;
+  return GL.tally(S.g.players, S.ui.votes);
 }
 async function finishVoting() {
   if (!S.ui.votes.length) {
@@ -2871,38 +2733,7 @@ function showGameHistory() {
 }
 
 function checkWin() {
-  const arr = alive();
-  const wolves = arr.filter(p => isWolfTeam(p));
-  const villagers = arr.filter(p => !isWolfTeam(p));
-  const lovers = arr.filter(p => p.isLover);
-  if (arr.length === 2 && lovers.length === 2) {
-    const g1 = getTeamOf(lovers[0]);
-    const g2 = getTeamOf(lovers[1]);
-    if (g1 !== g2) return {winner: 'lovers', reason: 'คู่รักต่างฝ่ายเหลือ 2 คนสุดท้าย'};
-  }
-  const cultLeader = S.g.players.find(p => p.roleId === 'cult_leader');
-  if (cultLeader && cultLeader.alive && arr.every(p => p.cult || p.roleId === 'cult_leader')) {
-    return {winner: 'cult', reason: 'ทุกคนอยู่ในลัทธิครบแล้ว'};
-  }
-  const hoodlum = arr.find(p => p.roleId === 'hoodlum');
-  if (hoodlum && S.g.hoodlumTargets && S.g.hoodlumTargets.length === 2) {
-    const bothDead = S.g.hoodlumTargets.every(id => {
-      const t = getP(id);
-      return t && !t.alive;
-    });
-    if (bothDead) return {winner: 'hoodlum', reason: 'นักเลง: เป้าหมายทั้ง 2 ตาย และตัวเองยังรอด'};
-  }
-  if (arr.length === 1) {
-    if (arr[0].roleId === 'lone_wolf') return {winner: 'lonewolf', reason: 'หมาป่าเดียวดายเหลือรอดคนสุดท้าย'};
-    if (arr[0].roleId === 'vampire') return {winner: 'vampire', reason: 'แวมไพร์เป็นผู้รอดคนสุดท้าย'};
-  }
-  if (wolves.length === 0) return {winner: 'village', reason: 'หมาป่าตายหมด'};
-  const loneAlive = arr.some(p => p.roleId === 'lone_wolf');
-  if (wolves.length >= villagers.length) {
-    if (loneAlive && villagers.length > 0) return null;
-    return {winner: 'werewolf', reason: 'หมาป่าเท่าหรือมากกว่าชาวบ้าน'};
-  }
-  return null;
+  return GL.checkWin(S.g.players, {hoodlumTargets: S.g.hoodlumTargets, roles: ROLES});
 }
 function endGame(win) {
   S.g.winner = win.winner;
@@ -3333,6 +3164,7 @@ function uxPhaseLabel() {
     tie: 'คะแนนเสมอ',
     execution: 'ผลการโหวต',
     prince: 'เจ้าชายเปิดตัว',
+    roles: '📖 บทบาททั้งหมด',
     end: 'จบเกม'
   };
   return map[S.screen] || 'เกมหมาป่า';
@@ -3361,6 +3193,11 @@ function uxTopbar() {
       icon = '‹';
       label = 'ตั้งค่า';
     }
+    if (S.screen === 'roles') {
+      action = 'goHome()';
+      icon = '‹';
+      label = 'หน้าแรก';
+    }
     leftBtn = `<button class="ux-back" onclick="${action}" aria-label="${label}">${icon}</button>`;
   }
 
@@ -3375,7 +3212,7 @@ function uxTopbar() {
   </div></div>`;
 }
 function uxBottom() {
-  if (!S.g || ['home', 'setup', 'assign', 'reveal', 'end'].includes(S.screen)) return '';
+  if (!S.g || ['home', 'setup', 'assign', 'reveal', 'end', 'roles'].includes(S.screen)) return '';
   const nightActive = ['night', 'dawn', 'hunter'].includes(S.screen);
   const dayActive = ['day', 'voting', 'tie', 'execution', 'prince'].includes(S.screen);
   const timerBtn = S.ui.tRunning
@@ -3401,7 +3238,7 @@ function render() {
     applyTheme();
     const trig = $('modTrig');
     if (trig) {
-      const hide = !S.g || ['home', 'setup', 'reveal', 'end', 'assign'].includes(S.screen);
+      const hide = !S.g || ['home', 'setup', 'reveal', 'end', 'assign', 'roles'].includes(S.screen);
       trig.style.display = hide ? 'none' : 'block';
     }
     const app = $('app');
@@ -3419,7 +3256,8 @@ function render() {
       tie: renderTie,
       execution: renderExecution,
       prince: renderPrince,
-      end: renderEnd
+      end: renderEnd,
+      roles: renderRoleGuide
     };
     const fn = screens[S.screen] || renderHome;
     const body = fn();
@@ -3527,6 +3365,9 @@ function renderHome() {
         }
       </div>
       <div class="home-secondary" style="margin-top:10px">
+        ${btn('📖 บทบาททั้งหมด (' + Object.keys(ROLES).length + ')', 'openRoleGuide()')}
+      </div>
+      <div class="home-secondary" style="margin-top:10px">
         ${btn('📖 ผลย้อนหลัง' + (histCount ? ' (' + histCount + ')' : ''), 'showGameHistory()')}
         ${histCount ? btn('🗑 ลบ', 'clearGameHistory()', {dg: 1, sm: 1}) : ''}
       </div>
@@ -3554,8 +3395,45 @@ function showHelp() {
     <div class="log-item"><b>Undo กลางคืน</b> — ในหน้าสรุปของแต่ละบทบาทมีปุ่ม "↩︎ แก้ไข"</div>
     <div class="log-item"><b>Undo แขวนคอ</b> — ในหน้าแขวนคอ มีปุ่ม "↩︎ ย้อนการแขวน" (ถ้าเกมยังไม่จบ)</div>
     <div class="log-item"><b>บทบาทใหม่</b> — นักบวช/นักสืบ/นักเวท/นางปีศาจ ใช้ได้ครั้งเดียว · แวมไพร์กัดแล้วเหยื่อตายวันรุ่งขึ้น · ผีตายคืนแรก</div>
+    <div class="log-item"><b>📖 คู่มือบทบาท</b> — เงื่อนไขชนะ + จุดสำคัญของทุกบท และ interaction ข้ามบทบาท</div>
+    <div class="mt">${btn('📖 เปิดคู่มือบทบาททั้งหมด', 'closeSheet();openRoleGuide()', {p: 1})}</div>
   `
   );
+}
+
+function openRoleGuide() {
+  S.screen = 'roles';
+  render();
+}
+function renderRoleGuide() {
+  const factionTag = f => (f === 'wolf' ? ['bd w', 'หมาป่า'] : f === 'village' ? ['bd v', 'ชาวบ้าน'] : ['bd n', 'อิสระ']);
+  const card = r => {
+    const R = ROLES[r];
+    const G = ROLE_GUIDE[r] || {win: ''};
+    const [tagCls, tagLabel] = factionTag(R.faction);
+    return `<article class="rg-card" data-role="${r}">
+      <div class="rg-head">${roleImg(r, 'rg-img')}
+        <div class="rg-t">
+          <h3>${R.name}</h3>
+          <div class="rg-meta"><span class="rg-icon" aria-hidden="true">${R.icon}</span><span class="${tagCls}">${tagLabel}</span><span class="rg-bp">bp ${R.bp >= 0 ? '+' + R.bp : R.bp}</span></div>
+        </div>
+      </div>
+      <p class="rg-desc">${R.desc}</p>
+      <p class="rg-win"><b>🏆 เงื่อนไขชนะ:</b> ${G.win}</p>
+      ${G.note ? `<p class="rg-note"><b>⚡ จุดสำคัญ:</b> ${G.note}</p>` : ''}
+    </article>`;
+  };
+  const section = (label, ids) => `<section class="rg-sec"><h3 class="rg-label">${label}</h3><div class="rg-grid">${ids.map(card).join('')}</div></section>`;
+  const interactions = INTERACTIONS.map(t => `<li>${t}</li>`).join('');
+  return `<div class="scr role-guide">
+    <h2>📖 บทบาททั้งหมด (${Object.keys(ROLES).length})</h2>
+    ${notice('เงื่อนไขชนะ + จุดสำคัญของทุกบท และกฎ interaction ข้ามบทบาท', 'i', true)}
+    ${section('🔴 ฝ่ายหมาป่า (Werewolf Team)', WOLF_GROUP)}
+    ${section('🔵 ฝ่ายชาวบ้าน (Villager Team)', VILLAGE_GROUP)}
+    ${section('⚫ ฝ่ายอิสระ (Neutral)', NEUTRAL_GROUP)}
+    <section class="rg-sec"><h3 class="rg-label">🔗 interaction ข้ามบทบาท</h3><ul class="rg-int">${interactions}</ul></section>
+    ${btn('หน้าแรก', 'goHome()')}
+  </div>`;
 }
 
 function roleSummaryCard() {

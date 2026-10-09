@@ -10,7 +10,7 @@ export default [
   },
   js.configs.recommended,
   {
-    files: ['app.js', 'sw.js'],
+    files: ['app.js', 'game-logic.js', 'sw.js'],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: 'script',

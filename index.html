@@ -37,10 +37,33 @@
       aria-atomic="true"
       style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap"
     ></div>
-    <div id="modTrig" onpointerdown="modStart(event)" onpointerup="modEnd(event)" onpointerleave="modEnd(event)" onpointercancel="modEnd(event)">
+    <div
+      id="modTrig"
+      role="button"
+      tabindex="0"
+      aria-label="แผงผู้ดำเนินเกม (GM) — กดค้าง 3 วินาทีเพื่อเปิด"
+      onpointerdown="modStart(event)"
+      onpointerup="modEnd(event)"
+      onpointerleave="modEnd(event)"
+      onpointercancel="modEnd(event)"
+      onkeydown="
+        if ((event.key === 'Enter' || event.key === ' ') && !event.repeat) {
+          event.preventDefault();
+          modStart(event);
+        }
+      "
+      onkeyup="
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          modEnd();
+        }
+      "
+      onblur="modEnd()"
+    >
       <div class="ring"></div>
       <div class="fill"></div>
     </div>
+    <script src="game-logic.js"></script>
     <script src="app.js"></script>
   </body>
 </html>

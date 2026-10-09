@@ -10,11 +10,12 @@
 ### 0.1 ทดสอบอัตโนมัติ (รันก่อนเสมอ)
 
 ```bash
-npm test          # หรือ: node test/smoke.mjs
+npm test            # หรือ: node test/smoke.mjs
+npm run test:unit   # unit tests: logic + contrast (node:test, ไม่ต้องเปิดเบราว์เซอร์)
 ```
 
 - ไม่ต้องติดตั้ง dependency — ใช้ Node http server + Chrome DevTools Protocol ตรง ๆ (ต้องมี Chrome/Edge)
-- ครอบคลุม **141 checks**: boot/theme/setup/manual assign/reveal/เล่นจบเกมครบทุกเฟส/boss ทุกบทบาท,
+- ครอบคลุม **147 checks**: boot/theme/setup/manual assign/reveal/เล่นจบเกมครบทุกเฟส/boss ทุกบทบาท,
   บันทึก-เล่นต่อ (reload กลางเกม), undo แขวนคอ, moderator panel, history, XSS, จับเวลา,
   dialog ของแอปแทน native `confirm()`/`alert()`, PWA (SW + cache + ออฟไลน์ + รูปบทบาท),
   save schema migration (`migrateSave`), เตือนตอนบันทึกไม่สำเร็จ,
@@ -31,6 +32,9 @@ npm test          # หรือ: node test/smoke.mjs
   **audit รอบ 2**: troublemaker `forceVoteRound === round` (วันเดียว) + วันบังคับโหวต,
   ลูกหมาป่าโบนัสได้แค่ 1 คืน, ปิดปากห้ามโหวต (วันปกติ+วันบังคับ) + game ไม่ค้าง,
   รูปบทบาททุกใบอยู่ใน `CORE_ASSETS` ของ sw.js,
+  **S19 P2 batch**: `GameLogic` module โหลดก่อน app, คู่มือบทบาท 30 การ์ด/30 เงื่อนไขชนะ/30 จุดสำคัญ,
+  interaction ≥12 ข้อ + section ครบ, `save()` เก็บหน้า roles เป็น home, modTrig a11y (role/tabindex/aria/keyboard),
+  ปุ่ม/Chip ≥44px ทุกปุ่ม,
   ไม่มี JS exception / 404
 - ผ่านทั้งหมด = พร้อม deploy · ถ้า fail ดูบรรทัด `ไม่ผ่าน:` ท้ายผลลัพธ์
 

@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "test": "node test/smoke.mjs",
+    "test:unit": "node --test test/logic.test.mjs test/styles.test.mjs",
     "serve": "node test/serve.mjs",
     "deploy": "npx wrangler deploy",
     "preview": "npx wrangler dev",

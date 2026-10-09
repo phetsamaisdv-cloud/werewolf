@@ -2301,6 +2301,34 @@ async function main() {
       JSON.stringify({total: roleAudit.total, missing: roleAudit.missing || []})
     );
 
+    /* ===== S19: คู่มือบทบาท + a11y + game-logic module ===== */
+    const glOk = await ev(
+      '(function(){ var gl = window.GameLogic; return !!(gl && typeof gl.checkWin === "function" && typeof gl.applyNightResolution === "function" && typeof gl.balanceScore === "function"); })()'
+    );
+    check('S19 GameLogic module โหลดก่อน app.js (checkWin/applyNightResolution/balanceScore ครบ)', glOk === true, String(glOk));
+    const guide = await ev(
+      '(function(){ openRoleGuide(); var cards = document.querySelectorAll(".rg-card").length; var wins = document.querySelectorAll(".rg-win").length; var notes = document.querySelectorAll(".rg-note").length; var ints = document.querySelectorAll(".rg-int li").length; var secs = document.querySelectorAll(".rg-sec").length; var s1 = S.screen; var lbl1 = uxPhaseLabel(); var slbl = getScreenLabel("roles"); S.screen = "home"; render(); return {cards: cards, wins: wins, notes: notes, ints: ints, secs: secs, s: s1, lbl: lbl1, slbl: slbl}; })()'
+    );
+    check(
+      'S19 คู่มือบทบาท: เปิด + การ์ดครบ 30 + เงื่อนไขชนะ/จุดสำคัญครบ',
+      guide.s === 'roles' && guide.cards === 30 && guide.wins === 30 && guide.notes === 30,
+      JSON.stringify(guide)
+    );
+    check(
+      'S19 interaction ข้ามบทบาท ≥ 12 ข้อ + section ฝ่ายครบ 4 + label ถูก',
+      guide.ints >= 12 && guide.secs === 4 && guide.slbl === 'บทบาททั้งหมด' && guide.lbl.indexOf('บทบาท') >= 0,
+      JSON.stringify({ints: guide.ints, secs: guide.secs, slbl: guide.slbl, lbl: guide.lbl})
+    );
+    const saveMap = await ev(
+      '(function(){ var hadG = !!S.g; if (!S.g) { newGameEnd(); S.setup.n = 6; S.setup.names = ["A","B","C","D","E","F"]; S.setup.roles = zeroRoles(); S.setup.roles.werewolf = 1; S.setup.roles.seer = 1; S.setup.assignMode = "random"; startGame(); var guard = 0; while (S.screen === "reveal" && guard++ < 60) nextRv(); } var w = S.g ? S.g.winner : null; if (S.g) S.g.winner = null; S.screen = "roles"; save(); var i = getSaveInfo(); var lbl = i ? i.screenLabel : null; if (S.g) S.g.winner = w; if (!hadG) newGameEnd(); else save(); S.screen = "home"; render(); return {lbl: lbl, has: !!i, hadG: hadG}; })()'
+    );
+    check('S19 save() เก็บหน้า roles เป็น home (resume ไม่พัง)', saveMap.has === true && saveMap.lbl === 'หน้าแรก', JSON.stringify(saveMap));
+    const a11y = await ev(
+      '(function(){ var mt = document.getElementById("modTrig"); var mtOk = !!(mt && mt.getAttribute("role") === "button" && mt.getAttribute("tabindex") === "0" && mt.getAttribute("aria-label") && typeof mt.onkeydown === "function" && typeof mt.onkeyup === "function"); var small = []; Array.prototype.forEach.call(document.querySelectorAll(".btn, .chip, .ux-back"), function(b){ var r = b.getBoundingClientRect(); if (r.width > 0 && r.height > 0 && r.height < 44) small.push(b.className + ":" + Math.round(r.height)); }); return {mtOk: mtOk, small: small}; })()'
+    );
+    check('S19 a11y: modTrig เป็นปุ่ม (role/tabindex/aria-label/keyboard)', a11y.mtOk === true, JSON.stringify(a11y));
+    check('S19 a11y: ปุ่ม/Chip ที่แสดงผล ≥ 44px ทุกปุ่ม', a11y.small.length === 0, JSON.stringify(a11y.small.slice(0, 6)));
+
     /* ===== report ===== */
     check('จบชุด — ไม่มี JS exception ระหว่างทาง', pageErrors.length === 0, pageErrors.slice(0, 3).join(' | '));
     check('จบชุด — ไม่มี HTTP error (404/500) ระหว่างทาง', httpErrors.length === 0, httpErrors.slice(0, 3).join(' | '));

@@ -3,7 +3,7 @@
    (ถ้า reject → navigation ทั้งหน้าล่มเป็น ERR_FAILED) */
 'use strict';
 
-const VERSION = 'v2.5.4';
+const VERSION = 'v2.5.5';
 const CACHE = 'werewolf-shell-' + VERSION;
 const NAV_TIMEOUT_MS = 5000;
 
@@ -11,6 +11,7 @@ const CORE_ASSETS = [
   './',
   './index.html',
   './styles.css',
+  './game-logic.js',
   './app.js',
   './manifest.json',
   './icon.svg',
