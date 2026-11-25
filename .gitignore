@@ -16,6 +16,13 @@ node_modules/
 .wrangler/
 dist/
 
+# deployment bundles (InfinityFree)
+werewolf-infinityfree.zip
+werewolf-subfolder.zip
+werewolf/
+werewolf-subfolder/
+werewolf-infinityfree/
+
 # secrets
 .env
 .env.*

@@ -6,7 +6,7 @@ const nodeGlobals = {...globals.node};
 
 export default [
   {
-    ignores: ['node_modules/**', 'archive/**', 'schemas/**', '.wrangler/**', '.agents/**', '.opencode/**', '.vscode/**', 'dist/**']
+    ignores: ['node_modules/**', 'archive/**', 'schemas/**', '.wrangler/**', '.agents/**', '.opencode/**', '.vscode/**', 'dist/**', 'werewolf*/**']
   },
   js.configs.recommended,
   {

@@ -8,8 +8,43 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="theme-color" content="#0a0a0f" />
     <meta name="description" content="ผู้ช่วยผู้ดำเนินเกม Werewolf — จัดการทุกคืน ทุกโหวต ทุกบทบาทจากหน้าจอเดียว" />
-    <link rel="manifest" href="manifest.json" />
     <title>คืนหอนหลอนหมาป่า</title>
+    <script>
+      (function () {
+        try {
+          var base = new URL('./', location.href);
+          var abs = function (p) {
+            return new URL(p, base).href;
+          };
+          var manifest = {
+            id: base.href,
+            name: 'คืนหอนหลอนหมาป่า — Werewolf Moderator',
+            short_name: 'หมาป่า',
+            description: 'ผู้ช่วยผู้ดำเนินเกม Werewolf — จัดการทุกคืน ทุกโหวต ทุกบทบาทจากหน้าจอเดียว',
+            lang: 'th',
+            dir: 'ltr',
+            start_url: abs('index.html'),
+            scope: base.href,
+            display: 'standalone',
+            orientation: 'portrait',
+            background_color: '#0a0a0f',
+            theme_color: '#0a0a0f',
+            categories: ['games', 'entertainment'],
+            icons: [
+              {src: abs('icon.svg'), sizes: 'any', type: 'image/svg+xml', purpose: 'any'},
+              {src: abs('icons/icon-192.png'), sizes: '192x192', type: 'image/png', purpose: 'any'},
+              {src: abs('icons/icon-512.png'), sizes: '512x512', type: 'image/png', purpose: 'any'},
+              {src: abs('icons/icon-maskable-192.png'), sizes: '192x192', type: 'image/png', purpose: 'maskable'},
+              {src: abs('icons/icon-maskable-512.png'), sizes: '512x512', type: 'image/png', purpose: 'maskable'}
+            ]
+          };
+          var link = document.createElement('link');
+          link.rel = 'manifest';
+          link.href = URL.createObjectURL(new Blob([JSON.stringify(manifest)], {type: 'application/manifest+json'}));
+          document.head.appendChild(link);
+        } catch (e) {}
+      })();
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link

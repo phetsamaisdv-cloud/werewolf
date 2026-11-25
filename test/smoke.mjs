@@ -1362,11 +1362,46 @@ async function main() {
         closeSheet();
         out.steps.ghost = g1;
 
-        /* 2) นายพรานยิงยาจก → ยาจกชนะทันที (P0-4) */
+        /* 2) นายพรานยิงยาจก → ยาจกตายธรรมดา (แพ้) เกมไม่จบเพราะยาจก */
         fresh(6, {werewolf:1, hunter:1, tanner:1, seer:1});
+        const tnHunter = byRole('tanner');
         S.ui.pendHunter = {hunterId: byRole('hunter').id, context: 'dawn'};
-        hunterShoot(byRole('tanner').id);
-        out.steps.hunterTanner = {winner: S.g.winner, screen: S.screen};
+        hunterShoot(tnHunter.id);
+        const shotOut = {winner: S.g.winner || null, screen: S.screen, cause: S.ui.deathCauses[tnHunter.id], alive: tnHunter.alive};
+        fromDawn();
+        out.steps.hunterTanner = {...shotOut, afterDawn: S.screen};
+
+        /* 2b) ยาจกถูกหมาป่ากัด / ถูกแม่มดวางยา → ตายธรรมดา (แพ้) เกมไม่จบเพราะยาจก */
+        fresh(6, {werewolf:1, tanner:1, seer:1, witch:1});
+        const tnBite = byRole('tanner');
+        killP(tnBite.id, 'night');
+        S.ui.deaths = [tnBite.id];
+        fromDawn();
+        const biteOut = {winner: S.g.winner || null, screen: S.screen, cause: S.ui.deathCauses[tnBite.id], alive: tnBite.alive};
+        fresh(6, {werewolf:1, tanner:1, seer:1, witch:1});
+        const tnPoison = byRole('tanner');
+        killP(tnPoison.id, 'poison');
+        S.ui.deaths = [tnPoison.id];
+        fromDawn();
+        out.steps.tannerNight = {
+          bite: biteOut,
+          poison: {winner: S.g.winner || null, screen: S.screen, cause: S.ui.deathCauses[tnPoison.id], alive: tnPoison.alive}
+        };
+
+        /* 2c) ยาจกฝ่ายอิสระ + ไม่ตื่นกลางคืน + เทพตรวจว่า "ไม่ใช่หมาป่า" */
+        fresh(6, {werewolf:1, tanner:1, seer:1, witch:1});
+        const tnSeer = byRole('tanner');
+        S.ui.nRole = 'seer';
+        S.ui.tgt = tnSeer.id;
+        confirmSeer();
+        const seerLog = (S.g.log || []).filter(e => e.msg && e.msg.indexOf('ตรวจ ' + tnSeer.name) >= 0).pop();
+        out.steps.tannerSeer = {
+          faction: ROLES.tanner.faction,
+          nightRoles: activeNRoles(),
+          result: S.ui.seerRes,
+          log: seerLog ? seerLog.msg : '',
+          guideWin: ROLE_GUIDE.tanner.win
+        };
 
         /* 3) goHome → goSetup → goHome → resume ยังอยู่ (P0-5) */
         fresh(6, {werewolf:1, seer:1, witch:1});
@@ -1631,9 +1666,39 @@ async function main() {
       JSON.stringify(fx.ghost || {})
     );
     check(
-      'S16 นายพรานยิงยาจก → ยาจกชนะทันที',
-      fx.hunterTanner && fx.hunterTanner.winner === 'tanner' && fx.hunterTanner.screen === 'end',
+      'S16 นายพรานยิงยาจก → ยาจกแพ้ เกมดำเนินต่อ',
+      fx.hunterTanner &&
+        fx.hunterTanner.cause === 'hunter' &&
+        fx.hunterTanner.alive === false &&
+        fx.hunterTanner.winner === null &&
+        fx.hunterTanner.screen === 'dawn' &&
+        fx.hunterTanner.afterDawn === 'day',
       JSON.stringify(fx.hunterTanner || {})
+    );
+    check(
+      'S16 ยาจกถูกกัด/วางยา → ตายธรรมดา (แพ้) ไม่จบเกมเพราะยาจก',
+      fx.tannerNight &&
+        fx.tannerNight.bite.screen === 'day' &&
+        fx.tannerNight.bite.winner === null &&
+        fx.tannerNight.bite.cause === 'night' &&
+        fx.tannerNight.bite.alive === false &&
+        fx.tannerNight.poison.screen === 'day' &&
+        fx.tannerNight.poison.winner === null &&
+        fx.tannerNight.poison.cause === 'poison' &&
+        fx.tannerNight.poison.alive === false,
+      JSON.stringify(fx.tannerNight || {})
+    );
+    check(
+      'S16 ยาจกฝ่ายอิสระ ไม่ตื่นกลางคืน + เทพตรวจว่าไม่ใช่หมาป่า',
+      fx.tannerSeer &&
+        fx.tannerSeer.faction === 'neutral' &&
+        !fx.tannerSeer.nightRoles.includes('tanner') &&
+        fx.tannerSeer.result &&
+        fx.tannerSeer.result.isWerewolf === false &&
+        fx.tannerSeer.log.includes('ไม่ใช่หมาป่า') &&
+        fx.tannerSeer.guideWin.includes('ถูกโหวต') &&
+        !fx.tannerSeer.guideWin.includes('กัด'),
+      JSON.stringify(fx.tannerSeer || {})
     );
     check(
       'S16 ออกจากเกม→ตั้งค่า→กลับ → resume ยังอยู่ + เล่นต่อได้',
@@ -2185,8 +2250,8 @@ async function main() {
           fresh(6, {werewolf:1, tanner:1, seer:1, witch:1});
           const tnP = byRole('tanner');
           executePlayer(tnP.id);
-          out.ok.tanner = S.screen === 'end' && S.g.winner === 'tanner';
-          out.steps.tanner = {screen: S.screen, winner: S.g.winner};
+          out.ok.tanner = S.screen === 'end' && S.g.winner === 'tanner' && tnP.alive === false && S.ui.deathCauses[tnP.id] === 'vote';
+          out.steps.tanner = {screen: S.screen, winner: S.g.winner, cause: S.ui.deathCauses[tnP.id], reason: S.g.winReason};
         });
 
         /* 28. cult_leader — ชวนเข้าลัทธิได้จริง */

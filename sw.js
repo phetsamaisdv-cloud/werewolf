@@ -3,7 +3,7 @@
    (ถ้า reject → navigation ทั้งหน้าล่มเป็น ERR_FAILED) */
 'use strict';
 
-const VERSION = 'v2.5.5';
+const VERSION = 'v2.6.1';
 const CACHE = 'werewolf-shell-' + VERSION;
 const NAV_TIMEOUT_MS = 5000;
 
@@ -13,7 +13,6 @@ const CORE_ASSETS = [
   './styles.css',
   './game-logic.js',
   './app.js',
-  './manifest.json',
   './icon.svg',
   './assets/logo.png',
   './assets/hero.png',
@@ -73,6 +72,48 @@ async function safePut(request, response) {
     await cache.put(request, response);
   } catch (e) {
     /* เก็บแคชไม่ได้ไม่เป็นไร — ไม่กระทบการโหลด */
+  }
+}
+
+/* InfinityFree (และโฮสต์ฟรีอื่น ๆ) แทรกหน้า anti-bot "aes.js" แทนไฟล์ .html/.js/.json
+   เมื่อ request ครั้งแรกยังไม่มีคุกกี้ — ถ้าเก็บหน้านั้นลงแคช แอปจะพังถาวร
+   ตัวตรวจนี้จะอ่านเนื้อหาก็ต่อเมื่อ content-type เป็น text/html เท่านั้น
+   (รูป/CSS/JS จริงจะข้ามการอ่านทันที ไม่มีผลต่อความเร็ว) */
+async function isChallengePage(res) {
+  try {
+    const ct = (res.headers.get('content-type') || '').toLowerCase();
+    if (ct.indexOf('text/html') === -1) return false;
+    const text = await res.clone().text();
+    return text.indexOf('/aes.js') !== -1 || text.indexOf('slowAES') !== -1;
+  } catch (e) {
+    return false;
+  }
+}
+
+/* เก็บลงแคชเฉพาะ response ที่ใช้ได้จริง: ok + ไม่ใช่หน้า challenge
+   clone แบบ synchronous (ก่อน await จุดแรก) เพื่อให้เรียกแบบไม่ await ได้อย่างปลอดภัย */
+async function cacheIfGood(request, res) {
+  try {
+    if (!res || !res.ok) return false;
+    const copy = res.clone();
+    if (await isChallengePage(copy)) return false;
+    await safePut(request, copy.clone());
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+/* precache แบบ best-effort: ไฟล์ใดพลาด/challenge ก็ไม่ทำให้ install ทั้งชุดล้มเหลว */
+async function precacheOne(cache, url) {
+  try {
+    const res = await fetch(url, {cache: 'reload', credentials: 'same-origin'});
+    if (!res || !res.ok) return false;
+    if (await isChallengePage(res)) return false;
+    await cache.put(url, res.clone());
+    return true;
+  } catch (e) {
+    return false;
   }
 }
 
@@ -138,7 +179,7 @@ async function handleNavigation(request) {
   try {
     res = await fetchWithTimeout(request, NAV_TIMEOUT_MS);
     if (res && res.ok) {
-      safePut('./index.html', res.clone());
+      cacheIfGood('./index.html', res);
       return res;
     }
   } catch (err) {
@@ -150,7 +191,7 @@ async function handleNavigation(request) {
     /* ดึงของใหม่เงียบ ๆ เผื่อเน็ต/เซิร์ฟเวอร์กลับมา */
     fetch(request)
       .then(function (r) {
-        if (r && r.ok) safePut('./index.html', r.clone());
+        return cacheIfGood('./index.html', r);
       })
       .catch(function () {});
     return cached;
@@ -164,14 +205,14 @@ async function handleAsset(request) {
   if (cached) {
     fetch(request)
       .then(function (r) {
-        if (r && r.ok) safePut(request, r.clone());
+        return cacheIfGood(request, r);
       })
       .catch(function () {});
     return cached;
   }
   try {
     const res = await fetch(request);
-    if (res && res.ok) safePut(request, res.clone());
+    if (res && res.ok) cacheIfGood(request, res);
     return res;
   } catch (err) {
     return offlineResponse();
@@ -181,15 +222,17 @@ async function handleAsset(request) {
 /* ---------- lifecycle ---------- */
 
 self.addEventListener('install', function (event) {
-  /* precache ทั้งชุดแบบ strict — ถ้าไฟล์ใดหาย/cdn ล่ม ให้ install ล้มเหลว
-     เพื่อให้เบราว์เซอร์ลองใหม่ครั้งถัดไป แทนที่จะเงียบหายแล้ว offline พัง */
+  /* precache แบบ best-effort — โฮสต์ฟรีอย่าง InfinityFree อาจตอบหน้า challenge
+     แทนไฟล์จริงในบางจังหวะ ถ้าใช้ strict (Promise.all + cache.add) แล้วไฟล์ใดพลาด
+     SW จะค้าง state "installing" ไม่มีวัน activate ทำงานออฟไลน์ไม่ได้
+     → precacheOne ไม่มีทาง reject และข้ามหน้า challenge ให้เอง */
   event.waitUntil(
     caches
       .open(CACHE)
       .then(function (cache) {
         return Promise.all(
           CORE_ASSETS.map(function (url) {
-            return cache.add(url);
+            return precacheOne(cache, url);
           })
         );
       })
